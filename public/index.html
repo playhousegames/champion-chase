@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Champion Chase</title>
+    <style>
+        /* ... (keep all existing styles unchanged) ... */
+    </style>
+</head>
+<body>
+    <div class="retro-grid"></div>
+    <div class="game-container">
+        <div class="header">
+            <h1 class="title">Champion Chase</h1>
+        </div>
+        <div class="lobby" id="lobby">
+            <h2>SELECT PLAYERS (2-4)</h2>
+            <input type="text" id="roomId" placeholder="Enter Room ID" maxlength="10" style="margin-bottom: 10px;">
+            <div class="player-setup">
+                <!-- Player cards as before -->
+                <div class="player-card" data-player="1">
+                    <h3>PLAYER 1</h3>
+                    <input type="text" placeholder="Enter name" id="player1-name" maxlength="10">
+                    <div style="margin-top: 8px; color: #ff0000; font-size: 12px;">Touch Controls</div>
+                </div>
+                <!-- ... (player 2-4 cards) ... -->
+            </div>
+            <button class="btn" onclick="joinRoom()">JOIN ROOM</button>
+            <button class="btn" id="startBtn" onclick="startGame()" style="display: none;">START RACE</button>
+        </div>
+        <!-- ... (statusBar, countdown, track, mobileControls, results as before) ... -->
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
