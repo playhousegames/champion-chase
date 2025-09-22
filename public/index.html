@@ -1,37 +1,409 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Champion Chase</title>
-    <style>
-        /* ... (keep all existing styles unchanged) ... */
-    </style>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <title>Turbo Tails</title>
+
+  <!-- Pixel font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-purple: #1a0033;
+      --sky: #87cefa;
+      --neon: #32ff32;
+      --dockH: 180px; /* JS overwrites this with the real dock height */
+    }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: var(--bg-purple); color: #fff;
+      font-family: 'Press Start 2P', monospace;
+      overflow-x: hidden;
+    }
+
+    /* Lock body scrolling in the lobby; allow internal scroll in #screen */
+    body.no-scroll {
+      position: fixed; overflow: hidden; width: 100%; height: 100%;
+      overscroll-behavior: none; touch-action: manipulation;
+    }
+
+    /* ===== Arcade cabinet frame ===== */
+    #cabinet { position: relative; min-height: 100vh; overflow: hidden; }
+
+    /* Thin wood side rails */
+    #cabinet::before, #cabinet::after {
+      content: "";
+      position: fixed; top: 0; bottom: 0;
+      width: clamp(8px, 2.8vw, 14px);           /* << thiiin */
+      background: url('images/arcade_side_wood_tile.png') center/contain repeat-y;
+      z-index: 500; pointer-events: none;
+    }
+    #cabinet::before { left: 0; box-shadow: inset -6px 0 0 rgba(0,0,0,.25); }
+    #cabinet::after  { right: 0; transform: scaleX(-1); box-shadow: inset 6px 0 0 rgba(0,0,0,.25); }
+
+    /* Top marquee (no small logo inside—prevents duplicate) */
+    #marquee {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 56px;                                 /* slimmer */
+      background: url('images/arcade_marquee.png') center/cover no-repeat;
+      z-index: 400; pointer-events: none;
+      border-bottom: 2px solid rgba(0,0,0,.6);
+      box-shadow: 0 6px 0 rgba(0,0,0,.45) inset;
+    }
+
+    /* Screen area can scroll internally while body is fixed */
+    #screen {
+      position: relative;
+      height: 100svh; /* modern mobile viewport unit */
+      padding-top: calc(56px + env(safe-area-inset-top)); /* clear marquee */
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ---- Status bar (centered timer overlay during race) ---- */
+    #statusBar {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 10px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(540px, 92vw);
+      height: 56px;
+      display: none;
+      align-items: center; justify-content: center; gap: .75rem;
+      background: #000; color: var(--neon);
+      border: 2px solid #111; border-radius: 10px;
+      z-index: 4100;
+      box-shadow: 0 4px 0 rgba(0,0,0,.5), 0 0 24px rgba(0,0,0,.35);
+    }
+    #statusBar.active { display: flex; }
+    #statusBar img    { height: 26px; image-rendering: pixelated; opacity: .9; }
+    #statusBar .status-timer { font-size: 1.25rem; letter-spacing: 1px; }
+
+    /* ---- Loading ---- */
+    #loadingScreen {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #000; z-index: 9999;
+    }
+    #loadingScreen img { max-width: 60%; height: auto; }
+    #loadingScreen p   { color: yellow; margin-top: 1rem; }
+
+    /* ---- Lobby ---- */
+    #lobby {
+      min-height: 100%;
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; gap: .6rem;
+      padding: 12px 16px;
+      /* space for the dock (JS writes --dockH to match real height) */
+      padding-bottom: calc(var(--dockH) + env(safe-area-inset-bottom));
+    }
+    .logo { width: 180px; max-width: 50vw; image-rendering: pixelated; margin: 12px auto 4px; }
+    #lobby h2 { letter-spacing: 2px; margin: .25rem 0 1rem; }
+    #lobby input {
+      width: min(320px, 90vw); padding: .6rem; border: none; border-radius: 8px;
+      text-align: center; font-size: 1rem;
+      box-shadow: 0 4px 0 rgba(0,0,0,.25);
+    }
+    #roomId { display: none; } /* no visible room numbers */
+
+    /* Lobby dock (Join/Start) fixed to bottom */
+    #lobbyDock {
+      position: sticky; /* sits inside #screen; still bottom-aligned visually */
+      bottom: 0;
+      margin-top: auto;
+      padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+      background: linear-gradient(180deg, rgba(11,9,18,0) 0%, rgba(11,9,18,.82) 40%, rgba(11,9,18,.95) 100%);
+      border-top: 2px solid rgba(255,255,255,.06);
+      display: flex; justify-content: center; gap: 14px;
+      z-index: 2600;
+    }
+    .pixel-button img { width: 200px; height: auto; image-rendering: pixelated; }
+    @media (max-width: 480px) {
+      .pixel-button img { width: 180px; }
+    }
+
+    /* ---- Grandstand ---- */
+    #grandstand {
+      width: 100%; height: 120px;
+      background: url('images/grandstand.png') repeat-x bottom;
+      background-size: auto 120px;
+      display: none;
+    }
+    #grandstand.active { display: block; }
+
+    /* ---- Track ---- */
+    .track-container {
+      position: relative; width: 100%; height: 320px; overflow: hidden;
+      background: var(--sky); display: none;
+    }
+    .track-container.active { display: block; }
+    #track {
+      position: relative; height: 100%;
+      background-image: repeating-linear-gradient(
+        to right,
+        rgba(255,255,255,.18) 0px,
+        rgba(255,255,255,.18) 2px,
+        transparent 2px,
+        transparent 90px
+      );
+    }
+    .lane { position: relative; z-index: 3; height: 25%; border-bottom: 2px dashed rgba(255,255,255,.8); display: flex; align-items: center; }
+    .runner { position: absolute; z-index: 3; left: 20px; width: 32px; height: 32px; image-rendering: pixelated; transition: left .08s linear; }
+    .name-label { position: absolute; top: 2px; left: 10px; font-size: .75rem; color: yellow; }
+
+    /* Pixel countdown */
+    #countdown {
+      display: none;
+      position: fixed; top: 42%; left: 50%; transform: translate(-50%,-50%);
+      font-family: 'Press Start 2P', monospace;
+      font-size: 3.2rem; letter-spacing: 3px; color: #fff;
+      text-shadow:
+        4px 4px 0 #000,
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000,
+        2px 2px 0 #000;
+      z-index: 4200;
+    }
+
+    /* Dust puff */
+    .dust { position: absolute; font-size: 1.2rem; opacity: .9; animation: dustFade .4s forwards; }
+    @keyframes dustFade { to { transform: translateY(-8px); opacity: 0; } }
+
+    /* Winner celebration */
+    .runner.winner { animation: winnerJump .6s ease-in-out infinite; }
+    @keyframes winnerJump { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
+
+    /* Finish line */
+    #finishLine {
+      position: absolute; top: 0; height: 100%; width: 14px;
+      background: repeating-linear-gradient(to bottom,#000 0 12px,#fff 12px 24px);
+      box-shadow: 0 0 8px rgba(255,255,255,.5); z-index: 1; pointer-events: none;
+    }
+    #finishLine .flag { position: absolute; top: -26px; left: -18px; font-size: 24px; z-index: 1; text-shadow: 2px 2px 0 #000; }
+
+    /* ---- Mobile controls: arcade panel with pixel buttons ---- */
+    .mobile-controls {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      padding: 22px 0 calc(22px + env(safe-area-inset-bottom));
+      background: url('images/arcade_panel_wood.png') center/cover no-repeat;
+      display: none; justify-content: center; z-index: 2500;
+      border-top: 2px solid rgba(0,0,0,.4);
+      box-shadow: 0 -8px 0 rgba(0,0,0,.45) inset, 0 -2px 0 rgba(255,255,255,.08) inset;
+    }
+    .mobile-controls.active { display: flex; }
+    .control-player-label { font-size: .9rem; margin-bottom: .4rem; opacity: .95; text-shadow: 2px 2px 0 rgba(0,0,0,.35); }
+
+    .player-touch-controls.dual { text-align: center; }
+    .dual-buttons { display: flex; justify-content: center; align-items: center; gap: 22px; }
+
+    .touch-btn {
+      width: 140px; height: 140px;
+      background: transparent url('images/arcade_button_red.png') center/contain no-repeat;
+      border: none; border-radius: 0; box-shadow: none;
+      text-indent: -9999px; overflow: hidden;
+    }
+    .touch-btn.active {
+      background-image: url('images/arcade_button_red_pressed.png');
+      transform: translateY(2px);
+    }
+    @media (max-width: 480px) {
+      .touch-btn { width: 120px; height: 120px; }
+      .dual-buttons { gap: 18px; }
+      .mobile-controls { padding: 18px 0 calc(18px + env(safe-area-inset-bottom)); }
+    }
+
+/* Fullscreen results modal */
+#results{
+  position: fixed;
+  inset: 0;
+  display: none;                 /* JS toggles to flex */
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 8, 20, 0.95);
+  z-index: 4600;                 /* above status bar & controls */
+  padding: max(16px, env(safe-area-inset-top)) 12px
+           max(16px, env(safe-area-inset-bottom));
+  backdrop-filter: saturate(120%) blur(2px);
+}
+
+#results.active{ display: flex; }
+
+/* Center panel */
+#results .panel{
+  width: min(560px, 92vw);
+  background: #0b0912;
+  border: 2px solid #fff;
+  border-radius: 12px;
+  padding: 18px 20px;
+  text-align: center;
+  box-shadow: 0 8px 0 rgba(0,0,0,.5), 0 0 28px rgba(0,0,0,.35);
+}
+
+/* Heading + list */
+#results .panel h2{
+  margin: 0 0 12px;
+  letter-spacing: 1px;
+}
+
+#leaderboard{ margin: 8px 0 12px; text-align: left; }
+.result-item{
+  display: flex; justify-content: space-between;
+  gap: 12px;
+  margin: .35rem 0;
+  font-size: 1.05rem;
+}
+
+/* Button row */
+#results .actions{ margin-top: 12px; display:flex; justify-content:center; }
+#results .actions .pixel-button img{
+  width: 200px; height: auto; image-rendering: pixelated;
+}
+
+@media (max-width:480px){
+  #results .panel{ width: 94vw; padding: 16px; }
+  .result-item{ font-size: 1rem; }
+  #results .actions .pixel-button img{ width: 180px; }
+}
+
+
+    /* Utility */
+    button { background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+    button img { display: block; }
+  </style>
 </head>
 <body>
-    <div class="retro-grid"></div>
-    <div class="game-container">
-        <div class="header">
-            <h1 class="title">Champion Chase</h1>
-        </div>
-        <div class="lobby" id="lobby">
-            <h2>SELECT PLAYERS (2-4)</h2>
-            <input type="text" id="roomId" placeholder="Enter Room ID" maxlength="10" style="margin-bottom: 10px;">
-            <div class="player-setup">
-                <!-- Player cards as before -->
-                <div class="player-card" data-player="1">
-                    <h3>PLAYER 1</h3>
-                    <input type="text" placeholder="Enter name" id="player1-name" maxlength="10">
-                    <div style="margin-top: 8px; color: #ff0000; font-size: 12px;">Touch Controls</div>
-                </div>
-                <!-- ... (player 2-4 cards) ... -->
-            </div>
-            <button class="btn" onclick="joinRoom()">JOIN ROOM</button>
-            <button class="btn" id="startBtn" onclick="startGame()" style="display: none;">START RACE</button>
-        </div>
-        <!-- ... (statusBar, countdown, track, mobileControls, results as before) ... -->
+  <div id="cabinet">
+    <div id="marquee"></div>
+
+    <!-- Centered timer HUD (shows only in-race) -->
+    <div id="statusBar">
+      <img src="images/turbo_tails_logo.png" alt="Turbo Tails" />
+      <span class="status-timer">⏱ <span id="timer">00.000</span></span>
     </div>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="game.js"></script>
+
+    <!-- LOADING -->
+    <div id="loadingScreen">
+      <img src="images/turbo_tails_logo.png" alt="Turbo Tails Logo">
+      <p>Please wait</p>
+    </div>
+
+    <!-- SCROLLABLE SCREEN AREA -->
+    <div id="screen">
+      <!-- LOBBY -->
+      <div id="lobby" style="display:none;">
+        <img src="images/turbo_tails_logo.png" alt="Turbo Tails Logo" class="logo">
+        <h2>SELECT RUNNERS</h2>
+
+        <!-- hidden room id (no codes in UI) -->
+        <input id="roomId" type="hidden" value="">
+
+        <div id="lobbyStatus" style="margin-top:.5rem;">
+          <div id="playerCounter">Players joined: 0/4</div>
+          <ul id="playerList" style="list-style:none;padding:0;margin:.25rem 0;"></ul>
+          <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
+          <div id="shareLink" style="margin-top:.5rem;font-size:.8rem;opacity:.8;"></div>
+        </div>
+
+        <div><p>RUNNER 1</p><input id="player1-name" placeholder="NAME"></div>
+        <div><p>RUNNER 2</p><input id="player2-name" placeholder="NAME"></div>
+        <div><p>RUNNER 3</p><input id="player3-name" placeholder="NAME"></div>
+        <div><p>RUNNER 4</p><input id="player4-name" placeholder="NAME"></div>
+
+        <!-- Bottom dock (thin one-line buttons) -->
+        <div id="lobbyDock">
+          <div class="pixel-button">
+            <button id="joinRoomBtn">
+              <img src="images/turbo_tails_join_now_button_thin.png" alt="Join Game">
+            </button>
+          </div>
+          <div class="pixel-button">
+            <button id="startBtn" style="display:none;">
+              <img src="images/turbo_tails_start_now_button_thin.png" alt="Start Race">
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- COUNTDOWN -->
+      <div id="countdown"></div>
+
+      <!-- GRANDSTAND -->
+      <div id="grandstand"></div>
+
+      <!-- TRACK (hidden until race) -->
+      <div class="track-container">
+        <div id="track">
+          <div id="lane1" class="lane"><div id="runner1" class="runner"></div><div id="name1" class="name-label"></div></div>
+          <div id="lane2" class="lane"><div id="runner2" class="runner"></div><div id="name2" class="name-label"></div></div>
+          <div id="lane3" class="lane"><div id="runner3" class="runner"></div><div id="name3" class="name-label"></div></div>
+          <div id="lane4" class="lane"><div id="runner4" class="runner"></div><div id="name4" class="name-label"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOBILE CONTROLS (arcade panel) -->
+    <div id="mobileControls" class="mobile-controls">
+      <div id="controlLayout"></div>
+    </div>
+
+    <!-- RESULTS -->
+<div id="results">
+  <div class="panel">
+    <h2>🏆 RACE RESULTS 🏆</h2>
+    <div id="leaderboard"></div>
+    <div class="actions">
+      <div class="pixel-button">
+        <button onclick="resetGame()">
+          <img src="images/turbo_tails_start_now_button_thin.png" alt="New Race">
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <!-- SOCKET + GAME -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+
+  <!-- Tiny helpers: set dock padding and keep fields visible on focus -->
+  <script>
+    (function () {
+      function updateDockPadding() {
+        var dock = document.getElementById('lobbyDock');
+        if (!dock) return;
+        var h = dock.offsetHeight || 160;
+        document.documentElement.style.setProperty('--dockH', h + 'px');
+      }
+      function focusIntoView(e) {
+        var screen = document.getElementById('screen');
+        if (!screen) return;
+        // Delay so iOS keyboard layout happens first
+        setTimeout(function () {
+          if (e.target && e.target.scrollIntoView) {
+            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 120);
+      }
+      window.addEventListener('load', updateDockPadding);
+      window.addEventListener('resize', updateDockPadding);
+      document.addEventListener('DOMContentLoaded', function () {
+        ['player1-name','player2-name','player3-name','player4-name'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) {
+            el.addEventListener('focus', focusIntoView);
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
