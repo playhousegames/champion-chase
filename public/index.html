@@ -220,59 +220,10 @@
       .mobile-controls { padding: 18px 0 calc(18px + env(safe-area-inset-bottom)); }
     }
 
-/* Fullscreen results modal */
-#results{
-  position: fixed;
-  inset: 0;
-  display: none;                 /* JS toggles to flex */
-  align-items: center;
-  justify-content: center;
-  background: rgba(10, 8, 20, 0.95);
-  z-index: 4600;                 /* above status bar & controls */
-  padding: max(16px, env(safe-area-inset-top)) 12px
-           max(16px, env(safe-area-inset-bottom));
-  backdrop-filter: saturate(120%) blur(2px);
-}
-
-#results.active{ display: flex; }
-
-/* Center panel */
-#results .panel{
-  width: min(560px, 92vw);
-  background: #0b0912;
-  border: 2px solid #fff;
-  border-radius: 12px;
-  padding: 18px 20px;
-  text-align: center;
-  box-shadow: 0 8px 0 rgba(0,0,0,.5), 0 0 28px rgba(0,0,0,.35);
-}
-
-/* Heading + list */
-#results .panel h2{
-  margin: 0 0 12px;
-  letter-spacing: 1px;
-}
-
-#leaderboard{ margin: 8px 0 12px; text-align: left; }
-.result-item{
-  display: flex; justify-content: space-between;
-  gap: 12px;
-  margin: .35rem 0;
-  font-size: 1.05rem;
-}
-
-/* Button row */
-#results .actions{ margin-top: 12px; display:flex; justify-content:center; }
-#results .actions .pixel-button img{
-  width: 200px; height: auto; image-rendering: pixelated;
-}
-
-@media (max-width:480px){
-  #results .panel{ width: 94vw; padding: 16px; }
-  .result-item{ font-size: 1rem; }
-  #results .actions .pixel-button img{ width: 180px; }
-}
-
+    /* Results */
+    #results { display: none; text-align: center; padding: 2rem; }
+    #results.active { display: block; }
+    .result-item { margin: .5rem 0; font-size: 1.1rem; }
 
     /* Utility */
     button { background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
@@ -312,10 +263,12 @@
           <div id="shareLink" style="margin-top:.5rem;font-size:.8rem;opacity:.8;"></div>
         </div>
 
-        <div><p>RUNNER 1</p><input id="player1-name" placeholder="NAME"></div>
-        <div><p>RUNNER 2</p><input id="player2-name" placeholder="NAME"></div>
-        <div><p>RUNNER 3</p><input id="player3-name" placeholder="NAME"></div>
-        <div><p>RUNNER 4</p><input id="player4-name" placeholder="NAME"></div>
+       <div id="lobbyStatus" style="margin-top:.5rem;">
+  <div id="playerCounter">Players joined: 0/4</div>
+  <ul id="playerList" style="list-style:none;padding:0;margin:.25rem 0;"></ul>
+  <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
+</div>
+
 
         <!-- Bottom dock (thin one-line buttons) -->
         <div id="lobbyDock">
@@ -354,21 +307,37 @@
       <div id="controlLayout"></div>
     </div>
 
-    <!-- RESULTS -->
+    
+   <!-- RESULTS -->
 <div id="results">
-  <div class="panel">
-    <h2>🏆 RACE RESULTS 🏆</h2>
-    <div id="leaderboard"></div>
-    <div class="actions">
-      <div class="pixel-button">
-        <button onclick="resetGame()">
-          <img src="images/turbo_tails_start_now_button_thin.png" alt="New Race">
-        </button>
-      </div>
-    </div>
+  <h2>🏆 RACE RESULTS 🏆</h2>
+  <div id="leaderboard"></div>
+
+  <!-- Google Ad slot on results screen -->
+  <div id="adSlot" style="margin:1rem 0;">
+    <!-- Replace with your AdSense snippet -->
+    <p style="opacity:.7;font-size:.8rem;">[Google Ad Placeholder]</p>
+  </div>
+
+  <div class="pixel-button">
+    <button onclick="resetGame()">
+      <img src="images/turbo_tails_start_now_button_thin.png" alt="New Race">
+    </button>
   </div>
 </div>
 
+<!-- ===== NEW AUDIO ===== -->
+<audio id="bgMusic" src="music/chiptune_theme.mp3" loop></audio>
+<button id="muteBtn" style="position:fixed;top:10px;right:10px;z-index:5000;">🔊</button>
+<script>
+  const bgMusic = document.getElementById('bgMusic');
+  const muteBtn = document.getElementById('muteBtn');
+  muteBtn.addEventListener('click', () => {
+    if (bgMusic.paused) { bgMusic.play(); muteBtn.textContent = "🔊"; }
+    else { bgMusic.pause(); muteBtn.textContent = "🔇"; }
+  });
+  window.addEventListener('load', () => { bgMusic.play().catch(()=>{}); });
+</script>
 
   <!-- SOCKET + GAME -->
   <script src="/socket.io/socket.io.js"></script>
@@ -405,5 +374,24 @@
       });
     })();
   </script>
+  
+<!-- ===== GOOGLE ANALYTICS + COOKIE CONSENT ===== -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXX');
+</script>
+
+<div id="cookieBanner" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#fff;padding:10px;text-align:center;z-index:6000;">
+  This site uses cookies for analytics and ads.
+  <button id="acceptCookies">Accept</button>
+</div>
+<script>
+  document.getElementById('acceptCookies').onclick = function() {
+    document.getElementById('cookieBanner').style.display = 'none';
+  };
+</script>
 </body>
 </html>

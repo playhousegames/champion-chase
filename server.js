@@ -28,6 +28,16 @@ function generateRoomCode(len = 6) {
   return code;
 }
 
+// safer: server assigns names; clients can't inject rude words
+const ANIMALS = ['Moose', 'Wolf', 'Horse', 'Panda'];
+const ADJS    = ['Turbo', 'Speedy', 'Pixel', 'Retro', 'Hyper', 'Rocket', 'Mega', 'Neon'];
+function generatePlayerName(slotNum) {
+  const a = ADJS[Math.floor(Math.random() * ADJS.length)];
+  const b = ANIMALS[(slotNum - 1) % ANIMALS.length];
+  const n = (Math.random() * 90 + 10) | 0; // 10–99
+  return `${a} ${b} ${n}`;
+}
+
 function getOrCreateWaitingRoom() {
   // Reuse the first room that hasn't started and has space
   for (const [rid, room] of Object.entries(rooms)) {
@@ -46,7 +56,9 @@ function getOrCreateWaitingRoom() {
     gameStarted: false,
     finishTimes: {},
     isResetting: false,
-    hostSocketId: null
+    hostSocketId: null,
+    tapStreaks: {},
+    stopTimers: {}
   };
   return rid;
 }
@@ -79,7 +91,7 @@ io.on('connection', (socket) => {
 
   // Player claims a runner slot and joins the room roster
   socket.on('joinRoom', (data) => {
-    const { roomId, playerName, playerNum } = data;
+    const { roomId, playerNum } = data;
     // Prefer server-assigned room (from quickRace); fall back to provided; final fallback dev default
     const rid = ((socket.roomId || roomId || 'ABC124') + '').toUpperCase();
 
@@ -92,7 +104,9 @@ io.on('connection', (socket) => {
         gameStarted: false,
         finishTimes: {},
         isResetting: false,
-        hostSocketId: null
+        hostSocketId: null,
+        tapStreaks: {},
+        stopTimers: {}
       };
     }
     const room = rooms[rid];
@@ -111,8 +125,11 @@ io.on('connection', (socket) => {
       return;
     }
 
+    // Server assigns a *safe* fun name (ignores client-provided text)
+    const safeName = generatePlayerName(playerNum);
+
     // Register / update player
-    room.players[playerNum]   = { name: playerName, id: playerNum, socketId: socket.id };
+    room.players[playerNum]   = { name: safeName, id: playerNum, socketId: socket.id };
     room.positions[playerNum] = 20;
     room.speeds[playerNum]    = 0;
 
@@ -131,6 +148,22 @@ io.on('connection', (socket) => {
       maxPlayers: MAX_PLAYERS,
       minToStart: MIN_TO_START
     });
+
+    // Auto-start when the room is full (still allow host-start for 2–3)
+    if (Object.keys(room.players).length === MAX_PLAYERS && !room.gameStarted) {
+      room.gameStarted = true;
+      room.finishTimes = {};
+      const startPos = 20;
+      Object.keys(room.players).forEach(pid => {
+        room.positions[pid] = startPos;
+        room.speeds[pid] = 0;
+      });
+      io.to(rid).emit('gameStarted', {
+        positions: room.positions,
+        speeds: room.speeds
+      });
+      console.log(`Race auto-started in ${rid} (room full)`);
+    }
   });
 
   // Host starts the race (server-enforced host check)
@@ -166,12 +199,11 @@ io.on('connection', (socket) => {
     console.log(`Race started in ${rid} with ${Object.keys(room.players).length} runners`);
   });
 
-  // Tap action (boost based on tap cadence)
+  // Tap action (boost based on tap cadence) + ANIMATION SYNC
   socket.on('playerAction', ({ roomId: rid, playerId }) => {
     const room = rooms[rid];
     if (!room || !room.players[playerId]) return;
 
-    if (!room.tapStreaks) room.tapStreaks = {};
     const now  = Date.now();
     const last = room.tapStreaks[playerId] || 0;
     const diff = now - last;
@@ -180,14 +212,22 @@ io.on('connection', (socket) => {
     if (diff < 200) boost = 12;    // quick
     if (diff < 120) boost = 16;    // frantic
 
-    room.positions[playerId] += boost;
+    room.positions[playerId] = (room.positions[playerId] || 20) + boost;
     room.speeds[playerId] = boost;
     room.tapStreaks[playerId] = now;
 
+    // broadcast state
     io.to(rid).emit('updateState', {
       positions: room.positions,
       speeds: room.speeds
     });
+
+    // start/stop animation notifications to *all* clients
+    io.to(rid).emit('startAnimation', { playerId });
+    clearTimeout(room.stopTimers[playerId]);
+    room.stopTimers[playerId] = setTimeout(() => {
+      io.to(rid).emit('stopAnimation', { playerId });
+    }, 300);
   });
 
   // Client reports a finish time (simple: trust client for now)
@@ -219,7 +259,9 @@ io.on('connection', (socket) => {
         gameStarted: false,
         finishTimes: {},
         isResetting: false,
-        hostSocketId: null
+        hostSocketId: null,
+        tapStreaks: {},
+        stopTimers: {}
       };
       io.to(rid).emit('roomReset', {});
       console.log(`Room ${rid} reset`);

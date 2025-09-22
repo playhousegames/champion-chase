@@ -1,14 +1,11 @@
 /* =========================================================
    TURBO TAILS — GAME CLIENT (global lobby + quick race)
-   - 4-player private rooms (invisible to users)
-   - Quick Race assigns you to a waiting room
-   - Host-only Start, min players = 2
-   - Pixel sprites: start/stop on tap, dust puffs
-   - Parallax grandstand + camera follow
-   - Finish line stripe + correct z-order
-   - Greys out taken runner slots
-   - Renders controls only for *my* player(s)
-   - Safari-safe (no optional chaining / nullish coalescing)
+   Updates:
+   - Sprite animation sync across players (start/stopAnimation)
+   - Auto-assign safe names (server-side)
+   - Auto-start when 4 join (server-side)
+   - Sample-based SFX engine (wav/mp3) + crowd
+   - Lobby chiptune music (in index.html)
    ========================================================= */
 
 const socket = io();
@@ -34,137 +31,6 @@ var playerStates = {};        // local per-runner (animation interval, lastTap, 
 var timerInterval = null;
 var gameLoopRunning = false;
 var eventListenersSetup = false;
-
-
-/* ===================== 8-bit SFX engine ===================== */
-const SFX = (() => {
-  const AC = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AC();
-  const master = ctx.createGain();
-  master.gain.value = 0.6;
-  master.connect(ctx.destination);
-
-  let muted = false;
-  const now = () => ctx.currentTime;
-
-  // resume on first interaction (iOS requires a gesture)
-  const resume = () => { if (ctx.state === 'suspended') ctx.resume(); };
-
-  // simple envelopes
-  function envNode(duration=0.2, {attack=0.005, decay=0.1, sustain=0.6, release=0.05, peak=1.0, end=0.0}={}) {
-    const g = ctx.createGain();
-    const t = now();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(peak, t + attack);
-    g.gain.linearRampToValueAtTime(peak*sustain, t + attack + decay);
-    g.gain.setValueAtTime(peak*sustain, t + duration);
-    g.gain.linearRampToValueAtTime(end, t + duration + release);
-    return g;
-  }
-
-  // 8-bit blip (square/triangle)
-  function blip({freq=440, dur=0.08, type='square', vol=0.4, slide=0}={}) {
-    if (muted) return;
-    const o = ctx.createOscillator();
-    o.type = type;
-    o.frequency.value = freq;
-    if (slide) o.frequency.linearRampToValueAtTime(freq + slide, now() + dur);
-    const g = envNode(dur, {attack:0.002, decay:0.07, sustain:0.3, release:0.03, peak:vol});
-    o.connect(g).connect(master);
-    o.start(); o.stop(now() + dur + 0.05);
-  }
-
-  // white/pink noise burst (whoosh, tape snap, crowd)
-  function noise({dur=0.2, vol=0.4, color='white', lp=8000, hp=200}={}) {
-    if (muted) return;
-    const bufferSize = Math.floor(ctx.sampleRate * dur);
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    let lastOut = 0;
-    for (let i=0;i<bufferSize;i++){
-      const white = Math.random()*2-1;
-      // pink-ish
-      lastOut = color==='pink' ? (lastOut + 0.02*white) / 1.02 : white;
-      data[i] = color==='pink' ? lastOut*3.5 : white;
-    }
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-
-    const lpf = ctx.createBiquadFilter(); lpf.type='lowpass';  lpf.frequency.value = lp;
-    const hpf = ctx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value = hp;
-
-    const g = envNode(dur, {attack:0.005, decay:dur*0.7, sustain:0.2, release:0.03, peak:vol});
-    src.connect(hpf).connect(lpf).connect(g).connect(master);
-    src.start(); src.stop(now()+dur+0.1);
-  }
-
-  // chord helper for GO/fanfare
-  function chord(freqs=[440,550,660], dur=0.2, vol=0.35, type='square'){
-    if (muted) return;
-    const g = envNode(dur, {attack:0.01, decay:0.12, sustain:0.4, release:0.06, peak:vol});
-    g.connect(master);
-    freqs.forEach(f=>{
-      const o = ctx.createOscillator();
-      o.type = type; o.frequency.value = f;
-      o.connect(g); o.start(); o.stop(now()+dur+0.08);
-    });
-  }
-
-  // arpeggio jingle (win)
-  function arpeggio(root=440, steps=[0,7,12,19,24], rate=0.07){
-    if (muted) return;
-    steps.forEach((st,i)=>{
-      const f = root * Math.pow(2, st/12);
-      setTimeout(()=> blip({freq:f, dur:0.09, type:'triangle', vol:0.5}), i*rate*1000);
-    });
-  }
-
-  // public presets
-  let lastStepAt = 0;
-  function step(){
-    const t = performance.now();
-    if (t - lastStepAt < 65) return; // throttle
-    lastStepAt = t;
-    blip({freq: Math.random()<.5? 420:480, dur:0.06, type:'square', vol:0.35});
-  }
-  const tapBoost = () => noise({dur:0.12, vol:0.35, color:'white', lp:4000, hp:300});
-  const overtake = () => noise({dur:0.18, vol:0.28, color:'white', lp:5000, hp:1000});
-  const checkpoint = () => blip({freq:700, dur:0.04, type:'square', vol:0.25});
-  const tapeSnap   = () => noise({dur:0.08, vol:0.45, color:'white', lp:7000, hp:1200});
-  const crowdCheer = () => noise({dur:1.2, vol:0.18, color:'pink', lp:3500, hp:200});
-
-  // countdown set
-  function countdownTick(n){
-    blip({freq: 360 + n*60, dur:0.08, type:'square', vol:0.45});
-  }
-  function goHorn(){
-    chord([440,554,659], 0.18, 0.45, 'square');
-    setTimeout(()=>noise({dur:0.18, vol:0.28, color:'white', lp:3000, hp:200}), 40);
-  }
-
-  function winJingle(){ arpeggio(330, [0,7,12,19,24,31], 0.065); crowdCheer(); }
-  function loseBeep(){ blip({freq:220,dur:0.25,type:'square',vol:0.35,slide:-80}); }
-
-  function setMute(v){
-    muted = !!v;
-    master.gain.value = muted ? 0.0 : 0.6;
-    const mb = document.getElementById('muteBtn');
-    if (mb) mb.textContent = muted ? '🔇' : '🔊';
-  }
-
-  // UI hookup for mute + resume on gesture
-  window.addEventListener('pointerdown', resume, { once:true, passive:true });
-  window.addEventListener('touchstart', resume, { once:true, passive:true });
-  document.addEventListener('click', (e)=>{
-    if (e.target && e.target.id === 'muteBtn') setMute(!muted);
-  });
-
-  return {
-    resume, setMute, step, tapBoost, overtake, checkpoint, tapeSnap, crowdCheer,
-    countdownTick, goHorn, winJingle, loseBeep, blip, chord, noise
-  };
-})();
-
 
 /* ------------------------------
    2) GRAPHICS / SPRITES
@@ -252,74 +118,42 @@ var gameGraphics = {
 };
 
 /* ------------------------------
-   3) SOUND (tiny retro bleeps)
+   3) SOUND (sample-based)
 ------------------------------ */
 var sounds = {
   initialized: false,
-  playCountdown: null,
-  playGo: null,
-  playTap: null,
-  playFinish: null,
-  playCrowd: null
+  sfx: {},
+  playCountdown: function(){},
+  playGo: function(){},
+  playTap: function(){},
+  playFinish: function(){},
+  playCrowd: function(){}
 };
 
 function initSounds() {
   if (sounds.initialized) return;
-  var AudioContext = window.AudioContext || window.webkitAudioContext;
-  try {
-    var audioContext = new AudioContext();
 
-    var mkBeep = function(freq, dur, vol, type) {
-      dur = dur || 0.1; vol = vol || 0.3; type = type || 'square';
-      var osc = audioContext.createOscillator();
-      var gain = audioContext.createGain();
-      osc.type = type;
-      osc.frequency.value = freq;
-      osc.connect(gain);
-      gain.connect(audioContext.destination);
-      gain.gain.setValueAtTime(vol, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + dur);
-      osc.start(audioContext.currentTime);
-      osc.stop(audioContext.currentTime + dur);
-    };
+  // preload wav/mp3 assets
+  var files = {
+    countdown: "sounds/countdown.wav",
+    go:        "sounds/go.wav",
+    tap:       "sounds/tap.wav",
+    finish:    "sounds/finish.wav",
+    crowd:     "sounds/crowd.wav"
+  };
+  Object.keys(files).forEach(function(k){
+    var a = new Audio(files[k]);
+    a.preload = 'auto';
+    sounds.sfx[k] = a;
+  });
 
-    sounds.playCountdown = function() { mkBeep(800, 0.1, 0.3, 'square'); };
-    sounds.playGo       = function() { mkBeep(1200, 0.3, 0.4, 'square'); };
-    sounds.playTap      = function() { mkBeep(200 + Math.random() * 100, 0.05, 0.1, 'triangle'); };
+  sounds.playCountdown = function(){ try { sounds.sfx.countdown.currentTime = 0; sounds.sfx.countdown.play(); } catch(e){} };
+  sounds.playGo        = function(){ try { sounds.sfx.go.currentTime = 0;        sounds.sfx.go.play(); } catch(e){} };
+  sounds.playTap       = function(){ try { sounds.sfx.tap.currentTime = 0;       sounds.sfx.tap.play(); } catch(e){} };
+  sounds.playFinish    = function(){ try { sounds.sfx.finish.currentTime = 0;    sounds.sfx.finish.play(); } catch(e){} };
+  sounds.playCrowd     = function(){ try { sounds.sfx.crowd.currentTime = 0;     sounds.sfx.crowd.play(); } catch(e){} };
 
-    sounds.playFinish = function() {
-      [800, 1000, 1200].forEach(function(f, i) { setTimeout(function(){ mkBeep(f, 0.2, 0.3, 'square'); }, i * 100); });
-    };
-
-    // simple crowd noise (short)
-    sounds.playCrowd = function() {
-      var seconds = 1.2;
-      var noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * seconds, audioContext.sampleRate);
-      var output = noiseBuffer.getChannelData(0);
-      for (var i = 0; i < output.length; i++) output[i] = (Math.random() * 2 - 1) * 0.05;
-
-      var src = audioContext.createBufferSource();
-      src.buffer = noiseBuffer;
-
-      var filter = audioContext.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.value = 1000;
-      filter.Q.value = 0.6;
-
-      var gain = audioContext.createGain();
-      gain.gain.setValueAtTime(0.12, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + seconds);
-
-      src.connect(filter);
-      filter.connect(gain);
-      gain.connect(audioContext.destination);
-      src.start();
-    };
-
-    sounds.initialized = true;
-  } catch (e) {
-    // no audio (ok)
-  }
+  sounds.initialized = true;
 }
 
 /* ------------------------------
@@ -428,9 +262,16 @@ function initGame() {
   var lobby = document.getElementById('lobby');
   if (lobby) lobby.style.display = 'block';
   lockScroll(true);
-  // auto-assign this socket to a waiting room so it receives roster updates
-if (!gameState.roomId) socket.emit('quickRace');
 
+  // auto-assign this socket to a waiting room so it receives roster updates
+  if (!gameState.roomId) socket.emit('quickRace');
+
+  // try to start lobby music if present and permitted
+  var bg = document.getElementById('bgMusic');
+  if (bg && bg.dataset.autoplay !== '1') {
+    bg.play().catch(function(){ /* user gesture needed; mute button can trigger */ });
+    bg.dataset.autoplay = '1';
+  }
 }
 
 /* ------------------------------
@@ -443,9 +284,9 @@ socket.on('disconnect', function(){});
 socket.on('roomAssigned', function (data) {
   if (!data) return;
   gameState.roomId = data.roomId;
-  // no visible room numbers; just store for joinRoom()
 });
 
+// Roster update
 // Roster update
 socket.on('playerJoined', function (data) {
   var count = Object.keys(gameState.players).length;
@@ -459,29 +300,18 @@ socket.on('playerJoined', function (data) {
   setupMobileControls();  // render controls only for my socket
   applySlotAvailability();
 
-  // update the counter text
-var counterEl = document.getElementById('playerCounter');
-var max = (data && typeof data.maxPlayers === 'number') ? data.maxPlayers : 4;
-if (counterEl) counterEl.textContent = 'Players joined: ' + count + '/' + max;
-
-
-  // Host-only Start logic
-  var startBtn = document.getElementById('startBtn');
-  var count = Object.keys(gameState.players).length;
-  var minToStart = (data && typeof data.minToStart === 'number') ? data.minToStart : 2;
-  var isHost = (data && data.hostSocketId) ? (socket.id === data.hostSocketId) : false;
-  if (startBtn) startBtn.style.display = (isHost && count >= minToStart) ? 'block' : 'none';
-
-  var waitingEl = document.getElementById('waitingLabel');
-  if (waitingEl) waitingEl.style.display = isHost ? 'none' : 'block';
-
-  // hide loader if still visible
-  var loading = document.getElementById('loadingScreen');
-  if (loading) {
-    loading.style.opacity = '0';
-    setTimeout(function(){ loading.style.display = 'none'; }, 400);
+  // ✅ Show fun names in lobby list
+  var playerList = document.getElementById('playerList');
+  if (playerList) {
+    playerList.innerHTML = '';
+    Object.keys(gameState.players).forEach(function(pid) {
+      var li = document.createElement('li');
+      li.textContent = gameState.players[pid].name.toUpperCase();
+      playerList.appendChild(li);
+    });
   }
 });
+
 
 socket.on('roomFull', function (payload) {
   var max = payload && payload.max ? payload.max : 4;
@@ -520,11 +350,7 @@ socket.on('gameStarted', function (data) {
   if (track) { track.style.display = 'block'; track.classList.add('active'); }
   if (mobileControls) mobileControls.classList.add('active');
   if (grandstand) grandstand.classList.add('active');
-
-  //SFX.crowdCheer();
-//setTimeout(() => SFX.crowdCheer(), 900);  // quick second swell
-
- if (sounds.initialized) sounds.playCrowd();
+  if (sounds.initialized) sounds.playCrowd();
 
   ensureFinishLine();
   setupLanes();
@@ -542,6 +368,14 @@ socket.on('updateState', function (data) {
   if (data && data.speeds) {
     for (var s in data.speeds) gameState.speeds[s] = data.speeds[s];
   }
+});
+
+// 🔄 Animation sync from server
+socket.on('startAnimation', function({ playerId }) {
+  startRunnerAnimation(playerId);
+});
+socket.on('stopAnimation', function({ playerId }) {
+  stopRunnerAnimation(playerId);
 });
 
 socket.on('endRace', function (finishTimes) {
@@ -591,7 +425,7 @@ function setupLanes() {
         playerStates[i].position = pos;
       }
       if (nameLabel) {
-        nameLabel.textContent = (gameState.players[i].name || '').toUpperCase();
+        nameLabel.textContent = (gameState.players[i].name || ('Runner ' + i)).toUpperCase();
         nameLabel.style.color = getPlayerColor(i);
       }
     } else {
@@ -666,7 +500,6 @@ function setupMobileControls() {
 
 /* ------------------------------
    11) INPUT / ANIMATION CONTROL
-   (Sprite start/stop + dust)
 ------------------------------ */
 function tapOnce(e, playerId) {
   e.preventDefault(); e.stopPropagation();
@@ -684,6 +517,7 @@ function tapOnce(e, playerId) {
   if (!playerStates[playerId]) playerStates[playerId] = {};
   playerStates[playerId].lastTap = Date.now();
 
+  // locally start anim immediately (feels responsive) — server will broadcast too
   startRunnerAnimation(playerId);
 
   socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
@@ -959,6 +793,9 @@ function showResults() {
     var winnerRunner = document.getElementById('runner' + winner.playerId);
     if (winnerRunner) winnerRunner.classList.add('winner');
   }
+
+  // if an ad placeholder exists, you can (re)request fill here
+  // e.g., if using AdSense Auto Ads, nothing needed; for a manual slot, insert the script/snippet in index.html
 }
 
 /* ------------------------------
@@ -1033,9 +870,6 @@ function resetGame() {
   if (timer) timer.textContent = '00.000';
   if (countdown) countdown.style.display = 'none';
 
-  // We *keep* gameState.roomId so Quick Race/room stays; or set to null to force fresh room next time.
-  // gameState.roomId = null;
-
   lockScroll(true);
 
   socket.emit('resetRoom', gameState.roomId);
@@ -1048,15 +882,8 @@ function resetGame() {
 ------------------------------ */
 function applySlotAvailability() {
   for (var i = 1; i <= 4; i++) {
-    var input = document.getElementById('player' + i + '-name');
     var label = document.querySelector('[data-player="' + i + '"] .control-player-label');
     var isTaken = !!(gameState.players && gameState.players[i]);
-
-    if (input) {
-      input.disabled = isTaken;
-      input.placeholder = isTaken ? 'TAKEN' : 'NAME';
-      input.style.opacity = isTaken ? '0.5' : '1';
-    }
     if (label && isTaken) {
       label.textContent = (gameState.players[i].name || ('Runner ' + i)).toUpperCase();
     }
@@ -1064,57 +891,36 @@ function applySlotAvailability() {
 }
 
 /* ------------------------------
-   17) JOIN ROOM (works with/without Quick Race)
+   17) JOIN ROOM (works with Quick Race)
 ------------------------------ */
 function joinRoom() {
   if (gameState.isResetting) return;
 
-  // If no room assigned yet (user hit Join first), ask server for one and retry.
   if (!gameState.roomId) {
     socket.once('roomAssigned', function (data) {
       if (data && data.roomId) {
         gameState.roomId = data.roomId;
-        joinRoom(); // re-run with a real room id
+        joinRoom();
       }
     });
     socket.emit('quickRace');
     return;
   }
 
-  // Collect player names from inputs (slots 1–4)
+  // Find first available slot automatically
+  var slot = null;
   for (var i = 1; i <= 4; i++) {
-    var input = document.getElementById('player' + i + '-name');
-    var name = (input && input.value ? input.value : '').trim();
-    if (name) {
-      if (!gameState.players[i]) gameState.players[i] = { id: i, name: name, active: false };
-      else gameState.players[i].name = name;
-    } else {
-      delete gameState.players[i];
-    }
+    if (!gameState.players[i]) { slot = i; break; }
   }
+  if (!slot) { alert('All runner slots are taken!'); return; }
 
-  // Require at least one runner
-  var toJoin = [];
-  for (var k in gameState.players) { if (gameState.players[k] && !gameState.players[k].active) toJoin.push(gameState.players[k]); }
-  if (toJoin.length === 0) {
-    alert('Enter at least one runner name!');
-    return;
-  }
+  socket.emit('joinRoom', { roomId: gameState.roomId, playerNum: slot });
 
-  // Emit a join for each named runner
-  toJoin.forEach(function(p){
-    socket.emit('joinRoom', {
-      roomId: gameState.roomId,      // uses server-assigned room
-      playerName: p.name,
-      playerNum: p.id
-    });
-    p.active = true; // mark locally to avoid double-join
-  });
-
-  // Hide Join button (avoid repeats)
+  // Hide Join button after success
   var joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn) joinBtn.style.display = 'none';
 }
+
 
 /* ------------------------------
    18) UTILITIES & INIT HOOKS
