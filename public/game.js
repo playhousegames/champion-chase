@@ -83,6 +83,9 @@ var gameGraphics = {
     this.loadCharacter4Frames();
   },
 
+
+
+
   // Apply first sprite frame + store frames on element for animation
   updateRunnerSprite: function(playerId) {
     var runner = document.getElementById('runner' + playerId);
@@ -117,9 +120,69 @@ var gameGraphics = {
   }
 };
 
-/* ------------------------------
-   3) SOUND (sample-based)
------------------------------- */
+
+
+function launchTickerTape() {
+  const container = document.querySelector('.track-container');
+  if (!container) return;
+
+  const tapes = [
+    'images/ticker_red.png',
+    'images/ticker_blue.png',
+    'images/ticker_yellow.png',
+    'images/ticker_green.png',
+    'images/ticker_white.png'
+  ];
+
+  for (let i = 0; i < 30; i++) {
+    const tape = document.createElement('div');
+    tape.className = 'ticker-tape';
+    tape.style.left = Math.random() * container.offsetWidth + 'px';
+    tape.style.top = '-16px';
+    tape.style.backgroundImage = `url(${tapes[Math.floor(Math.random() * tapes.length)]})`;
+    container.appendChild(tape);
+
+    const fallTime = 1800 + Math.random() * 1200;
+    const drift = (Math.random() * 80 - 40);
+
+    tape.animate(
+      [
+        { transform: 'translate(0,0) rotate(0deg)' },
+        { transform: `translate(${drift}px, ${container.offsetHeight + 40}px) rotate(${Math.random() * 360}deg)` }
+      ],
+      {
+        duration: fallTime,
+        easing: 'linear',
+        fill: 'forwards'
+      }
+    ).onfinish = () => tape.remove();
+  }
+}
+
+
+let audioCtx;
+let tapBuffer = null;
+
+async function initWebAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // Load and decode tap sound
+  const response = await fetch("sounds/button_press.wav");
+  const arrayBuffer = await response.arrayBuffer();
+  tapBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+}
+
+function playTapWeb() {
+  if (!tapBuffer || !audioCtx) return;
+  const source = audioCtx.createBufferSource();
+  source.buffer = tapBuffer;
+  source.connect(audioCtx.destination);
+  source.start(0);
+}
+
+
+/* SOUND (sample-based) */
 var sounds = {
   initialized: false,
   sfx: {},
@@ -127,34 +190,86 @@ var sounds = {
   playGo: function(){},
   playTap: function(){},
   playFinish: function(){},
-  playCrowd: function(){}
+  playVictory: function(){}
 };
+
+function pickFormat(baseName) {
+  var audio = document.createElement('audio');
+  if (audio.canPlayType('audio/ogg')) {
+    return baseName + ".ogg";
+  } else {
+    return baseName + ".mp3";
+  }
+}
 
 function initSounds() {
   if (sounds.initialized) return;
 
-  // preload wav/mp3 assets
+  // preload audio assets
   var files = {
     countdown: "sounds/countdown.wav",
     go:        "sounds/go.wav",
-    tap:       "sounds/tap.wav",
+    tap:       "sounds/button_press.wav",
     finish:    "sounds/finish.wav",
-    crowd:     "sounds/crowd.wav"
+    victory:   pickFormat("sounds/chiptune_victory_jingle") // NEW
   };
+
   Object.keys(files).forEach(function(k){
     var a = new Audio(files[k]);
     a.preload = 'auto';
+
+    if (k === "victory") {
+      a.volume = 0.7;  // make the jingle pop
+    }
+
     sounds.sfx[k] = a;
   });
 
-  sounds.playCountdown = function(){ try { sounds.sfx.countdown.currentTime = 0; sounds.sfx.countdown.play(); } catch(e){} };
-  sounds.playGo        = function(){ try { sounds.sfx.go.currentTime = 0;        sounds.sfx.go.play(); } catch(e){} };
-  sounds.playTap       = function(){ try { sounds.sfx.tap.currentTime = 0;       sounds.sfx.tap.play(); } catch(e){} };
-  sounds.playFinish    = function(){ try { sounds.sfx.finish.currentTime = 0;    sounds.sfx.finish.play(); } catch(e){} };
-  sounds.playCrowd     = function(){ try { sounds.sfx.crowd.currentTime = 0;     sounds.sfx.crowd.play(); } catch(e){} };
+  // === SFX PLAYERS ===
+  sounds.playCountdown = function(){ 
+    try { sounds.sfx.countdown.currentTime = 0; sounds.sfx.countdown.play(); } catch(e){} 
+  };
+
+  sounds.playGo = function(){ 
+    try { sounds.sfx.go.currentTime = 0; sounds.sfx.go.play(); } catch(e){} 
+  };
+
+sounds.playTap = function() {
+  if (tapBuffer) {
+    playTapWeb();   // use Web Audio (instant)
+  } else if (sounds.sfx.tap) {
+    // fallback: normal audio if Web Audio not ready
+    try {
+      const clone = sounds.sfx.tap.cloneNode();
+      clone.volume = 0.8;
+      clone.play().catch(()=>{});
+    } catch(e) {
+      console.warn("Tap sound error:", e);
+    }
+  }
+};
+
+
+  sounds.playFinish = function() {
+    if (!sounds.sfx.finish) return;
+    try {
+      sounds.sfx.finish.currentTime = 0;
+      var p = sounds.sfx.finish.play();
+      if (p && p.catch) p.catch(err => console.warn('Finish sound failed:', err));
+    } catch (e) { console.warn('Finish sound error:', e); }
+  };
+
+  sounds.playVictory = function() {
+    if (!sounds.sfx.victory) return;
+    try {
+      sounds.sfx.victory.currentTime = 0;
+      sounds.sfx.victory.play();
+    } catch (e) { console.warn("Victory sound error:", e); }
+  };
 
   sounds.initialized = true;
 }
+
 
 /* ------------------------------
    4) CAMERA / PARALLAX
@@ -210,6 +325,14 @@ function initGame() {
   if (eventListenersSetup) return;
   eventListenersSetup = true;
 
+  document.body.addEventListener('touchstart', () => {
+  initWebAudio();
+}, { once: true });
+document.body.addEventListener('click', () => {
+  initWebAudio();
+}, { once: true });
+
+
   // Set track width (longer on desktop)
   var raceLengthPx = isMobileDevice() ? 1200 : 1500;
   var track = document.getElementById('track');
@@ -263,6 +386,10 @@ function initGame() {
   if (lobby) lobby.style.display = 'block';
   lockScroll(true);
 
+  // 🔊 Resume lobby music
+var bg = document.getElementById('bgMusic');
+if (bg) bg.play().catch(()=>{});
+
   // auto-assign this socket to a waiting room so it receives roster updates
   if (!gameState.roomId) socket.emit('quickRace');
 
@@ -273,6 +400,24 @@ function initGame() {
     bg.dataset.autoplay = '1';
   }
 }
+
+// === Animated Logo Loop ===
+document.addEventListener('DOMContentLoaded', () => {
+  const logo = document.querySelector('.logo'); // uses class, matches your index.html
+  if (!logo) return;
+
+  const frames = [
+    'images/turbo_tails_logo_frame1.png',
+    'images/turbo_tails_logo_frame2.png'
+  ];
+
+  let current = 0;
+  setInterval(() => {
+    current = (current + 1) % frames.length;
+    logo.src = frames[current];
+  }, 400); // ~2.5 fps wag
+});
+
 
 /* ------------------------------
    8) SOCKET EVENTS
@@ -288,8 +433,8 @@ socket.on('roomAssigned', function (data) {
 
 // Roster update
 // Roster update
+// Roster update
 socket.on('playerJoined', function (data) {
-  var count = Object.keys(gameState.players).length;
   if (gameState.isResetting) return;
 
   gameState.players   = (data && data.players)   ? data.players   : {};
@@ -297,20 +442,75 @@ socket.on('playerJoined', function (data) {
   gameState.speeds    = (data && data.speeds)    ? data.speeds    : {};
 
   setupLanes();
-  setupMobileControls();  // render controls only for my socket
+  setupMobileControls();
   applySlotAvailability();
 
-  // ✅ Show fun names in lobby list
+  // === Add lobby roster UI update here ===
   var playerList = document.getElementById('playerList');
   if (playerList) {
     playerList.innerHTML = '';
     Object.keys(gameState.players).forEach(function(pid) {
-      var li = document.createElement('li');
-      li.textContent = gameState.players[pid].name.toUpperCase();
-      playerList.appendChild(li);
+      var player = gameState.players[pid];
+var div = document.createElement('div');
+div.className = 'player-entry';
+
+// mark host visually
+if (data.hostSocketId && player.socketId === data.hostSocketId) {
+  div.classList.add('host');
+}
+
+
+      var avatar = document.createElement('img');
+      avatar.style.width = '24px';
+      avatar.style.height = '24px';
+      avatar.style.imageRendering = 'pixelated';
+      avatar.alt = player.name;
+
+      var upper = player.name.toUpperCase();
+if (upper.includes('HORSE')) avatar.src = 'images/horse_1.png';
+else if (upper.includes('MOOSE')) avatar.src = 'images/moose_1.png';
+else if (upper.includes('PANDA')) avatar.src = 'images/panda_1.png';
+else if (upper.includes('WOLF'))  avatar.src = 'images/wolf_1.png';
+
+
+      var label = document.createElement('span');
+      label.textContent = player.name.toUpperCase();
+
+      div.appendChild(avatar);
+      div.appendChild(label);
+      playerList.appendChild(div);
     });
+
+    // Update counter
+    var counterEl = document.getElementById('playerCounter');
+    var max = (data && typeof data.maxPlayers === 'number') ? data.maxPlayers : 4;
+    if (counterEl) counterEl.textContent = 'Players joined: ' + Object.keys(gameState.players).length + '/' + max;
+  }
+
+  // === 🔽 Place your Start button code right here ===
+  var startBtn = document.getElementById('startBtn');
+  var playerCount = Object.keys(gameState.players).length;
+  var isHost = (data && data.hostSocketId) ? (socket.id === data.hostSocketId) : false;
+
+  if (startBtn) {
+    if (isHost && playerCount >= 2 && playerCount < 4) {
+      startBtn.style.display = 'block';
+      var img = startBtn.querySelector('img');
+      if (playerCount === 2) {
+        img.src = "images/turbo_tails_start_2p_button.png";
+        img.alt = "Start with 2 Players";
+      } else if (playerCount === 3) {
+        img.src = "images/turbo_tails_start_3p_button.png";
+        img.alt = "Start with 3 Players";
+      }
+    } else if (isHost && playerCount === 4) {
+      startBtn.style.display = 'none'; // auto-start case
+    } else {
+      startBtn.style.display = 'none';
+    }
   }
 });
+
 
 
 socket.on('roomFull', function (payload) {
@@ -326,32 +526,56 @@ socket.on('slotTaken', function (payload) {
 socket.on('gameStarted', function (data) {
   if (gameState.isResetting) return;
 
-  // Reset camera
-  cameraState.cameraOffset = 0;
+  var track   = document.getElementById('track');
+  var results = document.getElementById('results');
 
+  // Hide results (and ad inside it)
+  if (results) {
+    results.classList.remove('active');
+    results.style.display = 'none';
+  }
+
+  // Show track
+  if (track) {
+    track.style.display = 'block';
+    track.classList.add('active');
+  }
+
+if (sounds.playGo) sounds.playGo();
+
+  // Start ambience
+  // sounds.playRaceMusic();
+
+  // Pause lobby music if still playing
+  var bg = document.getElementById('bgMusic');
+  if (bg && !bg.paused) bg.pause();
+
+  // Reset state
+  cameraState.cameraOffset = 0;
   gameState.raceStarted = true;
   gameState.raceFinished = false;
   gameState.finishTimes = {};
 
   if (data && data.positions) gameState.positions = data.positions;
-  if (data && data.speeds) gameState.speeds = data.speeds;
+  if (data && data.speeds)    gameState.speeds    = data.speeds;
 
-  // UI toggles
+  // Toggle UI
   var lobby = document.getElementById('lobby');
   var statusBar = document.getElementById('statusBar');
-  var track = document.getElementById('track');
   var container = document.querySelector('.track-container');
   var mobileControls = document.getElementById('mobileControls');
   var grandstand = document.getElementById('grandstand');
 
   if (lobby) lobby.style.display = 'none';
   if (statusBar) statusBar.classList.add('active');
-  if (container) container.classList.add('active');
-  if (track) { track.style.display = 'block'; track.classList.add('active'); }
+  if (container) {
+  container.style.display = 'block';   // fix here
+  container.classList.add('active');
+}
   if (mobileControls) mobileControls.classList.add('active');
   if (grandstand) grandstand.classList.add('active');
-  if (sounds.initialized) sounds.playCrowd();
 
+  // Setup race
   ensureFinishLine();
   setupLanes();
   startCountdown();
@@ -359,6 +583,8 @@ socket.on('gameStarted', function (data) {
 
   console.log('🏁 Race starting…');
 });
+
+
 
 socket.on('updateState', function (data) {
   if (gameState.isResetting || gameState.raceFinished) return;
@@ -391,8 +617,24 @@ socket.on('endRace', function (finishTimes) {
 });
 
 socket.on('roomReset', function () {
-  // UI reset will be handled by resetGame()
+  console.log("Room was reset by server");
+
+  // clear local game state
+  gameState.roomId = null;
+  gameState.players = {};
+  gameState.raceStarted = false;
+  gameState.raceFinished = false;
+
+  // re-enable join button
+  var joinBtn = document.getElementById('joinRoomBtn');
+  if (joinBtn) {
+    joinBtn.style.display = 'inline-block';
+    joinBtn.disabled = false;
+  }
+
+  // you can let resetGame() handle the rest of the UI
 });
+
 
 /* ------------------------------
    9) LAYOUT / SETUP HELPERS
@@ -618,6 +860,7 @@ function startCountdown() {
     } else if (count === 0) {
       countdownEl.textContent = 'GO!';
       if (sounds.initialized) sounds.playGo();
+      launchTickerTape();
     } else {
       clearInterval(interval);
       countdownEl.style.display = 'none';
@@ -764,12 +1007,30 @@ function showResults() {
   var grandstand = document.getElementById('grandstand');
   var container = document.querySelector('.track-container');
 
+  // Hide all race UI hard (class + inline) so nothing overlays
   if (mobileControls) mobileControls.classList.remove('active');
-  if (container) container.classList.remove('active');
-  if (track) track.classList.remove('active');
   if (statusBar) statusBar.classList.remove('active');
   if (grandstand) grandstand.classList.remove('active');
-  if (results) results.classList.add('active');
+
+  if (track)   { track.classList.remove('active');   track.style.display = 'none'; }
+  if (container){container.classList.remove('active');container.style.display = 'none'; }
+
+  // Show results hard (class + inline)
+  if (results) {
+  results.classList.add('active');
+  results.style.display = ''; // make sure it's shown
+}
+
+
+
+  // Scroll to top so results are visible
+  var screen = document.getElementById('screen');
+  if (screen) screen.scrollTop = 0;
+  window.scrollTo(0, 0);
+
+  // ...keep your existing leaderboard-building code here ...
+
+
 
   var leaderboard = document.getElementById('leaderboard');
   if (!leaderboard) return;
@@ -778,6 +1039,9 @@ function showResults() {
   var sorted = Object.keys(gameState.finishTimes).map(function(pid){
     return { playerId: pid, time: gameState.finishTimes[pid], name: (gameState.players[pid] && gameState.players[pid].name) || ('Runner ' + pid) };
   }).sort(function(a,b){ return a.time - b.time; });
+
+  console.log("Sorted results:", sorted);
+
 
   var medals = ['🥇','🥈','🥉','🏅'];
   sorted.forEach(function(r, index){
@@ -803,17 +1067,15 @@ function showResults() {
 ------------------------------ */
 function resetGame() {
   if (gameState.isResetting) return;
-
   gameState.isResetting = true;
   gameState.countdownActive = false;
   gameLoopRunning = false;
 
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
-  // Reset camera
   cameraState.cameraOffset = 0;
 
-  // Clear animation intervals
+  // Clear animations
   for (var id in playerStates) {
     if (playerStates[id] && playerStates[id].animationInterval) {
       clearInterval(playerStates[id].animationInterval);
@@ -821,7 +1083,14 @@ function resetGame() {
     }
   }
 
-  // Reset game state
+  // Hide results
+  const results = document.getElementById('results');
+  if (results) {
+    results.classList.remove('active');
+    results.style.display = 'none';
+  }
+
+  // Reset state
   gameState.raceStarted = false;
   gameState.raceFinished = false;
   gameState.startTime = null;
@@ -829,6 +1098,7 @@ function resetGame() {
   gameState.positions = {};
   gameState.speeds = {};
   playerStates = {};
+  sounds.stopCrowd();
 
   // Reset UI
   for (var i = 1; i <= 4; i++) {
@@ -844,10 +1114,6 @@ function resetGame() {
         }
       }
     }
-    var input = document.getElementById('player' + i + '-name');
-    if (input) { input.value = ''; input.disabled = false; input.style.opacity = '1'; input.placeholder = 'NAME'; }
-    var card = document.querySelector('[data-player="' + i + '"]');
-    if (card) card.classList.remove('active');
   }
 
   var lobby = document.getElementById('lobby');
@@ -855,7 +1121,6 @@ function resetGame() {
   var track = document.getElementById('track');
   var container = document.querySelector('.track-container');
   var mobileControls = document.getElementById('mobileControls');
-  var results = document.getElementById('results');
   var grandstand = document.getElementById('grandstand');
   var timer = document.getElementById('timer');
   var countdown = document.getElementById('countdown');
@@ -865,17 +1130,22 @@ function resetGame() {
   if (container) container.classList.remove('active');
   if (track) { track.classList.remove('active'); track.style.display = 'none'; track.style.transform = 'translateX(0px)'; }
   if (mobileControls) mobileControls.classList.remove('active');
-  if (results) results.classList.remove('active');
   if (grandstand) { grandstand.classList.remove('active'); grandstand.style.backgroundPositionX = '0px'; }
   if (timer) timer.textContent = '00.000';
   if (countdown) countdown.style.display = 'none';
 
   lockScroll(true);
 
+  // Clear lobby list
+  var playerList = document.getElementById('playerList');
+  if (playerList) playerList.innerHTML = "";
+
+  // Tell server to reset
   socket.emit('resetRoom', gameState.roomId);
 
   setTimeout(function(){ gameState.isResetting = false; }, 800);
 }
+
 
 /* ------------------------------
    16) LOBBY HELPERS
@@ -919,6 +1189,9 @@ function joinRoom() {
   // Hide Join button after success
   var joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn) joinBtn.style.display = 'none';
+  var bg = document.getElementById('bgMusic');
+if (bg) bg.play().catch(()=>{ /* waiting for user gesture is fine */ });
+
 }
 
 

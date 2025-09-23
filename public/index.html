@@ -36,6 +36,168 @@
     /* ===== Arcade cabinet frame ===== */
     #cabinet { position: relative; min-height: 100vh; overflow: hidden; }
 
+    /* === Lobby Roster Panel === */
+#playerList {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* ✅ center the entries */
+  gap: 6px;
+}
+
+#playerList .player-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center; /* ✅ center avatar + text */
+  gap: 10px;
+  background: #111;
+  border: 2px solid #ff9900;
+  padding: 6px 12px;
+  border-radius: 4px;
+  min-width: 240px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  color: #fff;
+  text-shadow: 2px 2px #000;
+}
+
+
+#playerList .player-entry img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+
+#playerCounter {
+  font-size: 1rem;
+  color: #00ffcc;
+  text-shadow: 2px 2px #000;
+  margin-top: 0.5rem;
+}
+
+.ticker-tape {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  image-rendering: pixelated;
+  z-index: 9999;
+  background-size: cover;
+}
+
+
+.pixel-button.play-again{
+  /* scale to taste */
+  width: 220px;
+  aspect-ratio: 2 / 1;              /* keeps proportions */
+  background: url('images/turbo_tails_button_blank.png') center/100% 100% no-repeat;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.pixel-button.play-again span{
+  font-family: 'Press Start 2P', monospace;
+  font-size: 16px;                   /* tweak if needed */
+  color: #fff3c0;
+  letter-spacing: 2px;
+  /* thick pixel outline */
+  text-shadow:
+    2px  2px #2a0a0a,
+   -2px  2px #2a0a0a,
+    2px -2px #2a0a0a,
+   -2px -2px #2a0a0a,
+    2px  0  #2a0a0a,
+   -2px  0  #2a0a0a,
+    0    2px #2a0a0a,
+    0   -2px #2a0a0a;
+}
+
+.pixel-button.play-again:active{
+  filter: brightness(.9);
+  transform: translateY(2px);
+}
+
+
+/* Flashy Join button */
+#joinRoomBtn img {
+  animation: pulseGlow 1.2s infinite;
+}
+@keyframes pulseGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px #ff0) drop-shadow(0 0 6px #ff9900); }
+  50%      { filter: drop-shadow(0 0 12px #ff0) drop-shadow(0 0 18px #ff9900); }
+}
+
+
+
+#playerList .player-entry.host {
+  border-color: #00ffcc;   /* teal glow for host */
+  box-shadow: 0 0 8px #00ffcc;
+  position: relative;
+}
+
+#playerList .player-entry.host::after {
+  content: "HOST";
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background: #00ffcc;
+  color: #000;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+/* near your :root block */
+:root {
+  --cookieH: 64px; /* sensible default; JS will update this */
+}
+
+/* results layout – centered, but with extra bottom padding for the cookie bar */
+#results {
+  display: none;
+  /* let it size naturally instead of forcing vh */
+  height: auto;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 2rem 1rem;
+  background: #222;
+  color: #fff;
+  text-align: center;
+}
+
+#results.active {
+  display: flex;
+}
+
+
+/* tighten ad spacing so it doesn't bloat the layout */
+#adSlot {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+
+#results h2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem; /* space between trophy and text */
+}
+
+
+.result-item { margin: .5rem 0; font-size: 1.1rem; }
+
+
+
+
+
     /* Thin wood side rails */
     #cabinet::before, #cabinet::after {
       content: "";
@@ -155,7 +317,21 @@
       );
     }
     .lane { position: relative; z-index: 3; height: 25%; border-bottom: 2px dashed rgba(255,255,255,.8); display: flex; align-items: center; }
-    .runner { position: absolute; z-index: 3; left: 20px; width: 32px; height: 32px; image-rendering: pixelated; transition: left .08s linear; }
+    .runner {
+  position: absolute;
+  z-index: 3;
+  left: 20px;
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  transition: left .08s linear;
+
+  /* 🔽 anti-flicker fixes */
+  backface-visibility: hidden;
+  transform: translateZ(0);      /* force GPU compositing */
+  will-change: background-image, left;
+}
+
     .name-label { position: absolute; top: 2px; left: 10px; font-size: .75rem; color: yellow; }
 
     /* Pixel countdown */
@@ -221,8 +397,7 @@
     }
 
     /* Results */
-    #results { display: none; text-align: center; padding: 2rem; }
-    #results.active { display: block; }
+
     .result-item { margin: .5rem 0; font-size: 1.1rem; }
 
     /* Utility */
@@ -233,6 +408,21 @@
 <body>
   <div id="cabinet">
     <div id="marquee"></div>
+
+<audio id="bgMusic" src="music/chiptune_theme_catchy.wav" loop></audio>
+<button id="muteBtn" style="position:fixed;top:10px;right:10px;z-index:5000;">🔊</button>
+<script>
+  const bgMusic = document.getElementById('bgMusic');
+  const muteBtn = document.getElementById('muteBtn');
+  bgMusic.volume = 0.35; // softer
+  muteBtn.addEventListener('click', () => {
+    if (bgMusic.paused) { bgMusic.play(); muteBtn.textContent = "🔊"; }
+    else { bgMusic.pause(); muteBtn.textContent = "🔇"; }
+  });
+  window.addEventListener('load', () => { bgMusic.play().catch(()=>{}); });
+</script>
+
+
 
     <!-- Centered timer HUD (shows only in-race) -->
     <div id="statusBar">
@@ -250,36 +440,35 @@
     <div id="screen">
       <!-- LOBBY -->
       <div id="lobby" style="display:none;">
-        <img src="images/turbo_tails_logo.png" alt="Turbo Tails Logo" class="logo">
-        <h2>SELECT RUNNERS</h2>
+        <img src="images/turbo_tails_logo_frame1.png" alt="Turbo Tails Logo" class="logo">
+        <h2>JOIN THE RACE</h2>
 
         <!-- hidden room id (no codes in UI) -->
         <input id="roomId" type="hidden" value="">
 
         <div id="lobbyStatus" style="margin-top:.5rem;">
-          <div id="playerCounter">Players joined: 0/4</div>
-          <ul id="playerList" style="list-style:none;padding:0;margin:.25rem 0;"></ul>
-          <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
-          <div id="shareLink" style="margin-top:.5rem;font-size:.8rem;opacity:.8;"></div>
-        </div>
-
-       <div id="lobbyStatus" style="margin-top:.5rem;">
   <div id="playerCounter">Players joined: 0/4</div>
-  <ul id="playerList" style="list-style:none;padding:0;margin:.25rem 0;"></ul>
+  <div id="playerList" style="margin-top:.5rem;"></div>
+  <div id="joinContainer" style="margin-top:1rem;">
+ 
+</div>
+
   <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
 </div>
+
+          
 
 
         <!-- Bottom dock (thin one-line buttons) -->
         <div id="lobbyDock">
           <div class="pixel-button">
             <button id="joinRoomBtn">
-              <img src="images/turbo_tails_join_now_button_thin.png" alt="Join Game">
+              <img src="images/turbo_tails_join_now_button.png" alt="Join Game">
             </button>
           </div>
           <div class="pixel-button">
             <button id="startBtn" style="display:none;">
-              <img src="images/turbo_tails_start_now_button_thin.png" alt="Start Race">
+              <img src="images/turbo_tails_join_button.png" alt="Start Race">
             </button>
           </div>
         </div>
@@ -292,52 +481,65 @@
       <div id="grandstand"></div>
 
       <!-- TRACK (hidden until race) -->
-      <div class="track-container">
-        <div id="track">
-          <div id="lane1" class="lane"><div id="runner1" class="runner"></div><div id="name1" class="name-label"></div></div>
-          <div id="lane2" class="lane"><div id="runner2" class="runner"></div><div id="name2" class="name-label"></div></div>
-          <div id="lane3" class="lane"><div id="runner3" class="runner"></div><div id="name3" class="name-label"></div></div>
-          <div id="lane4" class="lane"><div id="runner4" class="runner"></div><div id="name4" class="name-label"></div></div>
-        </div>
-      </div>
+  <!-- TRACK (hidden until race) -->
+<div class="track-container">
+  <div id="track">
+    <div id="lane1" class="lane">
+      <div id="runner1" class="runner"></div>
+      <div id="name1" class="name-label"></div>
     </div>
+    <div id="lane2" class="lane">
+      <div id="runner2" class="runner"></div>
+      <div id="name2" class="name-label"></div>
+    </div>
+    <div id="lane3" class="lane">
+      <div id="runner3" class="runner"></div>
+      <div id="name3" class="name-label"></div>
+    </div>
+    <div id="lane4" class="lane">
+      <div id="runner4" class="runner"></div>
+      <div id="name4" class="name-label"></div>
+    </div>
+  </div>
+</div>
 
+
+
+
+
+    <!-- RESULTS (moved inside screen) -->
+<!-- RESULTS -->
+<div id="results" style="display:none;">
+  <h2>
+    <div style="font-size:2rem; margin-bottom:0.5rem;">🏆</div>
+    RACE RESULTS
+  </h2>
+
+  <div id="leaderboard"></div>
+
+  <div class="pixel-button play-again" onclick="resetGame()">
+    <span>PLAY AGAIN</span>
+  </div>
+
+  <!-- Ad stays INSIDE results so it hides with results -->
+  <div id="adSlot" style="margin:1rem auto 0; text-align:center;">
+    <p style="opacity:.7;font-size:.8rem;">[Google Ad Placeholder]</p>
+  </div>
+</div>
+
+
+
+
+   <!-- MOBILE CONTROLS (arcade panel) -->
     <!-- MOBILE CONTROLS (arcade panel) -->
     <div id="mobileControls" class="mobile-controls">
       <div id="controlLayout"></div>
     </div>
 
-    
-   <!-- RESULTS -->
-<div id="results">
-  <h2>🏆 RACE RESULTS 🏆</h2>
-  <div id="leaderboard"></div>
-
-  <!-- Google Ad slot on results screen -->
-  <div id="adSlot" style="margin:1rem 0;">
-    <!-- Replace with your AdSense snippet -->
-    <p style="opacity:.7;font-size:.8rem;">[Google Ad Placeholder]</p>
-  </div>
-
-  <div class="pixel-button">
-    <button onclick="resetGame()">
-      <img src="images/turbo_tails_start_now_button_thin.png" alt="New Race">
-    </button>
-  </div>
-</div>
 
 <!-- ===== NEW AUDIO ===== -->
-<audio id="bgMusic" src="music/chiptune_theme.mp3" loop></audio>
-<button id="muteBtn" style="position:fixed;top:10px;right:10px;z-index:5000;">🔊</button>
-<script>
-  const bgMusic = document.getElementById('bgMusic');
-  const muteBtn = document.getElementById('muteBtn');
-  muteBtn.addEventListener('click', () => {
-    if (bgMusic.paused) { bgMusic.play(); muteBtn.textContent = "🔊"; }
-    else { bgMusic.pause(); muteBtn.textContent = "🔇"; }
-  });
-  window.addEventListener('load', () => { bgMusic.play().catch(()=>{}); });
-</script>
+
+
 
   <!-- SOCKET + GAME -->
   <script src="/socket.io/socket.io.js"></script>
@@ -393,5 +595,26 @@
     document.getElementById('cookieBanner').style.display = 'none';
   };
 </script>
+<script>
+  function updateCookiePadding() {
+    const banner = document.getElementById('cookieBanner');
+    const visible = banner && banner.style.display !== 'none';
+    const h = visible ? (banner.offsetHeight || 0) : 0;
+    document.documentElement.style.setProperty('--cookieH', h + 'px');
+  }
+
+  // run on load/resize and after accept
+  window.addEventListener('load', updateCookiePadding);
+  window.addEventListener('resize', updateCookiePadding);
+
+  const accept = document.getElementById('acceptCookies');
+  if (accept) {
+    accept.addEventListener('click', function () {
+      document.getElementById('cookieBanner').style.display = 'none';
+      updateCookiePadding();
+    });
+  }
+</script>
+
 </body>
 </html>

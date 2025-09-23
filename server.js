@@ -167,37 +167,25 @@ io.on('connection', (socket) => {
   });
 
   // Host starts the race (server-enforced host check)
-  socket.on('startGame', (rid) => {
-    const room = rooms[rid];
-    if (!room || room.isResetting) return;
+// Host can start race (needs at least 2 players)
+// Auto-start still happens separately when 4 players join
+socket.on('startGame', (rid) => {
+  const room = rooms[rid];
+  if (!room || room.gameStarted) return;
 
-    // Only host can start
-    if (room.hostSocketId && room.hostSocketId !== socket.id) {
-      console.log(`Non-host tried to start room ${rid}`);
-      return;
-    }
+  const playerCount = Object.keys(room.players).length;
+  if (playerCount < 2) {
+    socket.emit('errorMessage', { text: 'Need at least 2 players to start.' });
+    return;
+  }
 
-    // Enforce minimum players
-    if (Object.keys(room.players).length < MIN_TO_START) {
-      console.log(`Race NOT started in ${rid} — need at least ${MIN_TO_START} players`);
-      return;
-    }
-
-    room.gameStarted = true;
-    room.finishTimes = {};
-    const startPos = 20;
-    Object.keys(room.players).forEach(pid => {
-      room.positions[pid] = startPos;
-      room.speeds[pid] = 0;
-    });
-
-    io.to(rid).emit('gameStarted', {
-      positions: room.positions,
-      speeds: room.speeds
-    });
-
-    console.log(`Race started in ${rid} with ${Object.keys(room.players).length} runners`);
+  io.to(rid).emit('gameStarted', {
+    positions: room.positions,
+    speeds: room.speeds
   });
+  room.gameStarted = true;
+});
+
 
   // Tap action (boost based on tap cadence) + ANIMATION SYNC
   socket.on('playerAction', ({ roomId: rid, playerId }) => {
