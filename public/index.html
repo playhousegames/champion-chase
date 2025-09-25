@@ -2,251 +2,252 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  />
-  <title>Turbo Tails</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Sushi Sprint</title>
 
-  <!-- Pixel font -->
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+
+
 
   <style>
-    :root {
-      --bg-purple: #1a0033;
-      --sky: #87cefa;
-      --neon: #32ff32;
-      --dockH: 180px; /* JS overwrites this with the real dock height */
-    }
+:root {
+  /* Sushi Sprint palette */
+  --hot-tuna-red: #FF3366;
+  --ocean-blue:   #0066FF;
+  --golden-tamago:#FFD700;
+  --electric-wasabi:#00FF88;
+  --pure-rice-white:#FFFFFF;
+
+  /* base bg for game page */
+  --bg: #000;
+}
+
+/* use the new bg var instead of the old purple */
+
+
+
     html, body {
       margin: 0; padding: 0; height: 100%;
-      background: var(--bg-purple); color: #fff;
+      background: var(--bg);
       font-family: 'Press Start 2P', monospace;
       overflow-x: hidden;
     }
 
-    /* Lock body scrolling in the lobby; allow internal scroll in #screen */
     body.no-scroll {
       position: fixed; overflow: hidden; width: 100%; height: 100%;
       overscroll-behavior: none; touch-action: manipulation;
     }
 
-    /* ===== Arcade cabinet frame ===== */
-    #cabinet { position: relative; min-height: 100vh; overflow: hidden; }
-
-    /* === Lobby Roster Panel === */
-#playerList {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center; /* ✅ center the entries */
-  gap: 6px;
+/* Logo Styles */
+.logo-container {
+  margin-bottom: 48px;
 }
 
-#playerList .player-entry {
-  display: flex;
-  align-items: center;
-  justify-content: center; /* ✅ center avatar + text */
-  gap: 10px;
-  background: #111;
-  border: 2px solid #ff9900;
-  padding: 6px 12px;
-  border-radius: 4px;
-  min-width: 240px;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 14px;
-  color: #fff;
-  text-shadow: 2px 2px #000;
+.main-logo {
+  position: relative;
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 0.9;
 }
 
-
-#playerList .player-entry img {
-  width: 32px;
-  height: 32px;
-  image-rendering: pixelated;
-}
-
-#playerCounter {
-  font-size: 1rem;
-  color: #00ffcc;
-  text-shadow: 2px 2px #000;
-  margin-top: 0.5rem;
-}
-
-.ticker-tape {
+.logo-shadow {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  image-rendering: pixelated;
-  z-index: 9999;
-  background-size: cover;
+  inset: 0;
+  color: var(--ocean-blue);
+  text-shadow: 
+    4px 4px 0px currentColor,
+    -4px -4px 0px currentColor,
+    4px -4px 0px currentColor,
+    -4px 4px 0px currentColor,
+    4px 0px 0px currentColor,
+    -4px 0px 0px currentColor,
+    0px 4px 0px currentColor,
+    0px -4px 0px currentColor;
+  -webkit-text-stroke: 4px currentColor;
+}
+
+.logo-main {
+  position: relative;
+  z-index: 10;
+  background: linear-gradient(45deg, var(--hot-tuna-red), var(--golden-tamago));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+/* Japanese Subtitle */
+.japanese-subtitle {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.japanese-subtitle h2 {
+  position: relative;
+  font-family: 'Noto Sans JP', serif;
+  font-size: clamp(1.2rem, 4vw, 2rem);
+  font-weight: bold;
+}
+
+.japanese-shadow {
+  position: absolute;
+  color: var(--ocean-blue);
+  text-shadow: 
+    2px 2px 0px currentColor,
+    -2px -2px 0px currentColor,
+    2px -2px 0px currentColor,
+    -2px 2px 0px currentColor;
+  transform: translateX(-50%);
+  left: 50%;
+}
+
+.japanese-main {
+  position: relative;
+  z-index: 10;
+  color: var(--pure-rice-white);
 }
 
 
-.pixel-button.play-again{
-  /* scale to taste */
-  width: 220px;
-  aspect-ratio: 2 / 1;              /* keeps proportions */
-  background: url('images/turbo_tails_button_blank.png') center/100% 100% no-repeat;
+
+    /* === Blocky Pixel Buttons (Unified) === */
+.play-button,
+.touch-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  user-select: none;
-}
-
-.pixel-button.play-again span{
   font-family: 'Press Start 2P', monospace;
-  font-size: 16px;                   /* tweak if needed */
-  color: #fff3c0;
-  letter-spacing: 2px;
-  /* thick pixel outline */
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  cursor: pointer;
+    outline: none;
+  border: none;
+
+  /* Size (tap buttons are square, lobby buttons scale by padding) */
+  min-width: 140px;
+  min-height: 48px;
+
+  /* Flat background + square border */
+  background: var(--hot-tuna-red);
+  color: var(--pure-rice-white);
+  border: 4px solid var(--ocean-blue);
+  border-radius: 0;
+
+  /* Pixel shadow */
+  box-shadow: 4px 4px 0 #000;
+
+  /* Chunky text outline */
   text-shadow:
-    2px  2px #2a0a0a,
-   -2px  2px #2a0a0a,
-    2px -2px #2a0a0a,
-   -2px -2px #2a0a0a,
-    2px  0  #2a0a0a,
-   -2px  0  #2a0a0a,
-    0    2px #2a0a0a,
-    0   -2px #2a0a0a;
+    2px  2px 0 #000,
+   -2px  2px 0 #000,
+    2px -2px 0 #000,
+   -2px -2px 0 #000;
 }
 
-.pixel-button.play-again:active{
-  filter: brightness(.9);
+.play-button:hover,
+.touch-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #000;
+}
+
+.play-button:active,
+/* Use images for game touch buttons */
+.touch-btn.pressed,
+.touch-btn.active {
   transform: translateY(2px);
+  box-shadow: none;
+  background-image: url('images/red_button_pressed.png') !important;
+  background-color: transparent !important;
+  color: transparent !important;
 }
 
-
-/* Flashy Join button */
-#joinRoomBtn img {
-  animation: pulseGlow 1.2s infinite;
-}
-@keyframes pulseGlow {
-  0%, 100% { filter: drop-shadow(0 0 4px #ff0) drop-shadow(0 0 6px #ff9900); }
-  50%      { filter: drop-shadow(0 0 12px #ff0) drop-shadow(0 0 18px #ff9900); }
+/* Mobile tap buttons square and centered */
+.touch-btn {
+  width: 120px;
+  height: 120px;
+  min-width: unset;
+  min-height: unset;
 }
 
-
-
-#playerList .player-entry.host {
-  border-color: #00ffcc;   /* teal glow for host */
-  box-shadow: 0 0 8px #00ffcc;
-  position: relative;
-}
-
-#playerList .player-entry.host::after {
-  content: "HOST";
-  position: absolute;
-  top: -10px;
-  right: -10px;
-  background: #00ffcc;
-  color: #000;
-  font-size: 10px;
-  font-weight: bold;
-  padding: 2px 4px;
-  border-radius: 3px;
-}
-
-/* near your :root block */
-:root {
-  --cookieH: 64px; /* sensible default; JS will update this */
-}
-
-/* results layout – centered, but with extra bottom padding for the cookie bar */
-#results {
-  display: none;
-  /* let it size naturally instead of forcing vh */
-  height: auto;
-  min-height: 0;
-
+.dual-buttons {
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-
-  padding: 2rem 1rem;
-  background: #222;
-  color: #fff;
-  text-align: center;
-}
-
-#results.active {
-  display: flex;
-}
-
-
-/* tighten ad spacing so it doesn't bloat the layout */
-#adSlot {
-  margin-top: 1rem;
-  text-align: center;
-}
-
-
-#results h2 {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.5rem; /* space between trophy and text */
+  gap: 22px;
+}
+
+/* Center lobby logo and buttons on mobile */
+@media (max-width: 600px) {
+  .logo-container {
+    text-align: center;
+    margin: 16px auto;
+  }
+#lobbyDock {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+  .play-button {
+    width: 100%;
+    max-width: 240px;
+  }
 }
 
 
-.result-item { margin: .5rem 0; font-size: 1.1rem; }
-
-
-
-
+    /* ===== Arcade cabinet frame (kept) ===== */
+    #cabinet { position: relative; min-height: 100vh; overflow: hidden; }
 
     /* Thin wood side rails */
-    #cabinet::before, #cabinet::after {
-      content: "";
-      position: fixed; top: 0; bottom: 0;
-      width: clamp(8px, 2.8vw, 14px);           /* << thiiin */
-      background: url('images/arcade_side_wood_tile.png') center/contain repeat-y;
-      z-index: 500; pointer-events: none;
-    }
-    #cabinet::before { left: 0; box-shadow: inset -6px 0 0 rgba(0,0,0,.25); }
-    #cabinet::after  { right: 0; transform: scaleX(-1); box-shadow: inset 6px 0 0 rgba(0,0,0,.25); }
+   
 
-    /* Top marquee (no small logo inside—prevents duplicate) */
-    #marquee {
-      position: fixed; top: 0; left: 0; right: 0;
-      height: 56px;                                 /* slimmer */
-      background: url('images/arcade_marquee.png') center/cover no-repeat;
-      z-index: 400; pointer-events: none;
-      border-bottom: 2px solid rgba(0,0,0,.6);
-      box-shadow: 0 6px 0 rgba(0,0,0,.45) inset;
-    }
-
-    /* Screen area can scroll internally while body is fixed */
+    /* Screen area scrolls internally */
     #screen {
       position: relative;
-      height: 100svh; /* modern mobile viewport unit */
+      height: 100svh;
       padding-top: calc(56px + env(safe-area-inset-top)); /* clear marquee */
       overflow: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
     }
 
-    /* ---- Status bar (centered timer overlay during race) ---- */
-    #statusBar {
-      position: fixed;
-      top: calc(env(safe-area-inset-top) + 10px);
-      left: 50%;
-      transform: translateX(-50%);
-      width: min(540px, 92vw);
-      height: 56px;
-      display: none;
-      align-items: center; justify-content: center; gap: .75rem;
-      background: #000; color: var(--neon);
-      border: 2px solid #111; border-radius: 10px;
-      z-index: 4100;
-      box-shadow: 0 4px 0 rgba(0,0,0,.5), 0 0 24px rgba(0,0,0,.35);
-    }
-    #statusBar.active { display: flex; }
-    #statusBar img    { height: 26px; image-rendering: pixelated; opacity: .9; }
-    #statusBar .status-timer { font-size: 1.25rem; letter-spacing: 1px; }
+    /* ---- Status bar ---- */
+   /* HUD (status bar) styling */
+#statusBar {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(540px, 92vw);
+  height: 56px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  background: #000;
+  color: #fff;
+  border: 2px solid #111;
+  border-radius: 10px;
+  z-index: 4100;
+  box-shadow: 0 4px 0 rgba(0,0,0,.5), 0 0 24px rgba(0,0,0,.35);
+}
+#statusBar.active { display: flex; }
+
+#statusBar .status-brand {
+  font-size: 1rem;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 0 #000;
+}
+#statusBar .status-timer {
+  font-size: 1.25rem;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
 
     /* ---- Loading ---- */
     #loadingScreen {
@@ -254,8 +255,7 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       background: #000; z-index: 9999;
     }
-    #loadingScreen img { max-width: 60%; height: auto; }
-    #loadingScreen p   { color: yellow; margin-top: 1rem; }
+    #loadingScreen .main-logo { margin-bottom: 10px; }
 
     /* ---- Lobby ---- */
     #lobby {
@@ -263,33 +263,67 @@
       display: flex; flex-direction: column; align-items: center;
       text-align: center; gap: .6rem;
       padding: 12px 16px;
-      /* space for the dock (JS writes --dockH to match real height) */
       padding-bottom: calc(var(--dockH) + env(safe-area-inset-bottom));
     }
-    .logo { width: 180px; max-width: 50vw; image-rendering: pixelated; margin: 12px auto 4px; }
-    #lobby h2 { letter-spacing: 2px; margin: .25rem 0 1rem; }
-    #lobby input {
-      width: min(320px, 90vw); padding: .6rem; border: none; border-radius: 8px;
-      text-align: center; font-size: 1rem;
-      box-shadow: 0 4px 0 rgba(0,0,0,.25);
-    }
-    #roomId { display: none; } /* no visible room numbers */
+    #lobby h2 { color: #fff; letter-spacing: 2px; margin: .25rem 0 1rem; }
+    #roomId { display: none; }
 
-    /* Lobby dock (Join/Start) fixed to bottom */
+    /* Player list (colors unified with homepage palette) */
+    #playerList {
+      margin-top: 1rem;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 6px;
+    }
+/* Strong contrast + size for the player entry name */
+#playerList .player-entry {
+  background: rgba(255,255,255,0.98);
+  border: 2px solid var(--hot-tuna-red);
+  color: var(--ocean-blue);
+}
+#playerList .player-entry span {
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: var(--ocean-blue);
+  text-shadow:
+    1px 1px 0 #000,
+   -1px 1px 0 #000,
+    1px -1px 0 #000,
+   -1px -1px 0 #000;
+}
+
+    #playerList .player-entry.host { border-color: #00ffcc; box-shadow: 0 0 8px #00ffcc; position: relative; }
+    #playerList .player-entry.host::after {
+      content: "HOST"; position: absolute; top: -10px; right: -10px;
+      background: #00ffcc; color: #000; font-size: 10px; font-weight: bold;
+      padding: 2px 4px; border-radius: 3px;
+    }
+    #playerCounter { font-size: 1rem; color: #00ffcc; text-shadow: 2px 2px #000; margin-top: 0.5rem; }
+
+    /* Lobby dock */
     #lobbyDock {
-      position: sticky; /* sits inside #screen; still bottom-aligned visually */
-      bottom: 0;
-      margin-top: auto;
+      position: sticky; bottom: 0; margin-top: auto;
       padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
-      background: linear-gradient(180deg, rgba(11,9,18,0) 0%, rgba(11,9,18,.82) 40%, rgba(11,9,18,.95) 100%);
+      /*background: linear-gradient(180deg, rgba(11,9,18,0) 0%, rgba(11,9,18,.82) 40%, rgba(11,9,18,.95) 100%);*/
       border-top: 2px solid rgba(255,255,255,.06);
       display: flex; justify-content: center; gap: 14px;
       z-index: 2600;
     }
-    .pixel-button img { width: 200px; height: auto; image-rendering: pixelated; }
-    @media (max-width: 480px) {
-      .pixel-button img { width: 180px; }
+
+    /* Homepage-style “play” button (replaces image buttons) */
+    .play-button {
+      background: var(--hot-tuna-red);
+      color: var(--pure-rice-white);
+      border: 4px solid var(--ocean-blue);
+      padding: 16px 24px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 14px;
+      text-transform: uppercase; letter-spacing: .1em;
+      cursor: pointer;
+      transition: all .2s ease;
+      box-shadow: 4px 4px 0 var(--ocean-blue);
     }
+    .play-button:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--ocean-blue); }
+    .play-button:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--ocean-blue); }
 
     /* ---- Grandstand ---- */
     #grandstand {
@@ -301,10 +335,7 @@
     #grandstand.active { display: block; }
 
     /* ---- Track ---- */
-    .track-container {
-      position: relative; width: 100%; height: 320px; overflow: hidden;
-      background: var(--sky); display: none;
-    }
+    .track-container { position: relative; width: 100%; height: 320px; overflow: hidden; background: #b7410e; display: none; }
     .track-container.active { display: block; }
     #track {
       position: relative; height: 100%;
@@ -318,34 +349,16 @@
     }
     .lane { position: relative; z-index: 3; height: 25%; border-bottom: 2px dashed rgba(255,255,255,.8); display: flex; align-items: center; }
     .runner {
-  position: absolute;
-  z-index: 3;
-  left: 20px;
-  width: 32px;
-  height: 32px;
-  image-rendering: pixelated;
-  transition: left .08s linear;
-
-  /* 🔽 anti-flicker fixes */
-  backface-visibility: hidden;
-  transform: translateZ(0);      /* force GPU compositing */
-  will-change: background-image, left;
-}
-
+      position: absolute; z-index: 3; left: 20px; width: 32px; height: 32px; image-rendering: pixelated; transition: left .08s linear;
+      backface-visibility: hidden; transform: translateZ(0); will-change: background-image, left;
+    }
     .name-label { position: absolute; top: 2px; left: 10px; font-size: .75rem; color: yellow; }
 
     /* Pixel countdown */
     #countdown {
-      display: none;
-      position: fixed; top: 42%; left: 50%; transform: translate(-50%,-50%);
-      font-family: 'Press Start 2P', monospace;
+      display: none; position: fixed; top: 42%; left: 50%; transform: translate(-50%,-50%);
       font-size: 3.2rem; letter-spacing: 3px; color: #fff;
-      text-shadow:
-        4px 4px 0 #000,
-        -2px -2px 0 #000,
-        2px -2px 0 #000,
-        -2px 2px 0 #000,
-        2px 2px 0 #000;
+      text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
       z-index: 4200;
     }
 
@@ -353,19 +366,15 @@
     .dust { position: absolute; font-size: 1.2rem; opacity: .9; animation: dustFade .4s forwards; }
     @keyframes dustFade { to { transform: translateY(-8px); opacity: 0; } }
 
-    /* Winner celebration */
+    /* Winner */
     .runner.winner { animation: winnerJump .6s ease-in-out infinite; }
     @keyframes winnerJump { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
 
     /* Finish line */
-    #finishLine {
-      position: absolute; top: 0; height: 100%; width: 14px;
-      background: repeating-linear-gradient(to bottom,#000 0 12px,#fff 12px 24px);
-      box-shadow: 0 0 8px rgba(255,255,255,.5); z-index: 1; pointer-events: none;
-    }
+    #finishLine { position: absolute; top: 0; height: 100%; width: 14px; background: repeating-linear-gradient(to bottom,#000 0 12px,#fff 12px 24px); box-shadow: 0 0 8px rgba(255,255,255,.5); z-index: 1; pointer-events: none; }
     #finishLine .flag { position: absolute; top: -26px; left: -18px; font-size: 24px; z-index: 1; text-shadow: 2px 2px 0 #000; }
 
-    /* ---- Mobile controls: arcade panel with pixel buttons ---- */
+    /* ---- Mobile controls: use your NEW red buttons ---- */
     .mobile-controls {
       position: fixed; left: 0; right: 0; bottom: 0;
       padding: 22px 0 calc(22px + env(safe-area-inset-bottom));
@@ -376,18 +385,20 @@
     }
     .mobile-controls.active { display: flex; }
     .control-player-label { font-size: .9rem; margin-bottom: .4rem; opacity: .95; text-shadow: 2px 2px 0 rgba(0,0,0,.35); }
-
     .player-touch-controls.dual { text-align: center; }
     .dual-buttons { display: flex; justify-content: center; align-items: center; gap: 22px; }
-
     .touch-btn {
       width: 140px; height: 140px;
-      background: transparent url('images/arcade_button_red.png') center/contain no-repeat;
+      background: transparent url('images/red_button_not_pressed.png') center/contain no-repeat;
       border: none; border-radius: 0; box-shadow: none;
       text-indent: -9999px; overflow: hidden;
+      image-rendering: pixelated;
+      user-select: none; -webkit-user-drag: none;
     }
-    .touch-btn.active {
-      background-image: url('images/arcade_button_red_pressed.png');
+    /* Support both .active (old JS) and .pressed (if you emit it) */
+    .touch-btn.active,
+    .touch-btn.pressed {
+      background-image: url('images/red_button_pressed.png');
       transform: translateY(2px);
     }
     @media (max-width: 480px) {
@@ -397,80 +408,84 @@
     }
 
     /* Results */
-
+    #results {
+      display: none; height: auto; min-height: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 2rem 1rem; background: #222; color: #fff; text-align: center;
+    }
+    #results.active { display: flex; }
+    #adSlot { margin-top: 1rem; text-align: center; }
+    #results h2 { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
     .result-item { margin: .5rem 0; font-size: 1.1rem; }
 
-    /* Utility */
-    button { background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
-    button img { display: block; }
+
+
+    /* === Confetti strips class (renamed, used by game.js) === */
+    .confetti-tape {
+      position: absolute; width: 10px; height: 10px;
+      image-rendering: pixelated; z-index: 9999; background-size: cover;
+    }
   </style>
 </head>
 <body>
   <div id="cabinet">
     <div id="marquee"></div>
 
-<audio id="bgMusic" src="music/chiptune_theme_catchy.wav" loop></audio>
-<button id="muteBtn" style="position:fixed;top:10px;right:10px;z-index:5000;">🔊</button>
-<script>
-  const bgMusic = document.getElementById('bgMusic');
-  const muteBtn = document.getElementById('muteBtn');
-  bgMusic.volume = 0.35; // softer
-  muteBtn.addEventListener('click', () => {
-    if (bgMusic.paused) { bgMusic.play(); muteBtn.textContent = "🔊"; }
-    else { bgMusic.pause(); muteBtn.textContent = "🔇"; }
-  });
-  window.addEventListener('load', () => { bgMusic.play().catch(()=>{}); });
-</script>
+    
+
+    <audio id="bgMusic" src="music/chiptune_theme_catchy.wav" loop></audio>
+    <button id="muteBtn" style="position:fixed;top:10px;right:10px;z-index:5000;">🔊</button>
+    <script>
+      const bgMusic = document.getElementById('bgMusic');
+      const muteBtn = document.getElementById('muteBtn');
+      bgMusic.volume = 0.35;
+      muteBtn.addEventListener('click', () => {
+        if (bgMusic.paused) { bgMusic.play(); muteBtn.textContent = "🔊"; }
+        else { bgMusic.pause(); muteBtn.textContent = "🔇"; }
+      });
+      window.addEventListener('load', () => { bgMusic.play().catch(()=>{}); });
+    </script>
+
+<!-- Race HUD (shows only during race) -->
+<div id="statusBar">
+  <span class="status-brand">RACE TIME</span>
+  <span class="status-timer">⏱ <span id="timer">00.000</span></span>
+</div>
+
+<!-- Loading Screen (shows before lobby/game) -->
 
 
 
-    <!-- Centered timer HUD (shows only in-race) -->
-    <div id="statusBar">
-      <img src="images/turbo_tails_logo.png" alt="Turbo Tails" />
-      <span class="status-timer">⏱ <span id="timer">00.000</span></span>
-    </div>
-
-    <!-- LOADING -->
-    <div id="loadingScreen">
-      <img src="images/turbo_tails_logo.png" alt="Turbo Tails Logo">
-      <p>Please wait</p>
-    </div>
 
     <!-- SCROLLABLE SCREEN AREA -->
-    <div id="screen">
-      <!-- LOBBY -->
-      <div id="lobby" style="display:none;">
-        <img src="images/turbo_tails_logo_frame1.png" alt="Turbo Tails Logo" class="logo">
+ <div id="lobby" style="display:none;">
+        <div class="logo-container" style="margin-top:8px;">
+          <h1 class="main-logo">
+            <span class="logo-shadow">SUSHI<br>SPRINT</span>
+            <span class="logo-main">SUSHI<br>SPRINT</span>
+          </h1>
+          <div class="japanese-subtitle">
+            <h2>
+              <span class="japanese-shadow">寿司スプリント</span>
+              <span class="japanese-main">寿司スプリント</span>
+            </h2>
+          </div>
+        </div>
         <h2>JOIN THE RACE</h2>
 
-        <!-- hidden room id (no codes in UI) -->
         <input id="roomId" type="hidden" value="">
 
         <div id="lobbyStatus" style="margin-top:.5rem;">
-  <div id="playerCounter">Players joined: 0/4</div>
-  <div id="playerList" style="margin-top:.5rem;"></div>
-  <div id="joinContainer" style="margin-top:1rem;">
- 
-</div>
+          <div id="playerCounter">Players joined: 0/4</div>
+          <div id="playerList" style="margin-top:.5rem;"></div>
+          <div id="joinContainer" style="margin-top:1rem;"></div>
+          <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
+        </div>
 
-  <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
-</div>
-
-          
-
-
-        <!-- Bottom dock (thin one-line buttons) -->
+        <!-- Bottom dock -->
         <div id="lobbyDock">
-          <div class="pixel-button">
-            <button id="joinRoomBtn">
-              <img src="images/turbo_tails_join_now_button.png" alt="Join Game">
-            </button>
-          </div>
-          <div class="pixel-button">
-            <button id="startBtn" style="display:none;">
-              <img src="images/turbo_tails_join_button.png" alt="Start Race">
-            </button>
-          </div>
+          <button id="joinRoomBtn" class="play-button">Join Game</button>
+          <button id="startBtn" class="play-button" style="display:none;">Start</button>
         </div>
       </div>
 
@@ -480,141 +495,112 @@
       <!-- GRANDSTAND -->
       <div id="grandstand"></div>
 
-      <!-- TRACK (hidden until race) -->
-  <!-- TRACK (hidden until race) -->
-<div class="track-container">
-  <div id="track">
-    <div id="lane1" class="lane">
-      <div id="runner1" class="runner"></div>
-      <div id="name1" class="name-label"></div>
-    </div>
-    <div id="lane2" class="lane">
-      <div id="runner2" class="runner"></div>
-      <div id="name2" class="name-label"></div>
-    </div>
-    <div id="lane3" class="lane">
-      <div id="runner3" class="runner"></div>
-      <div id="name3" class="name-label"></div>
-    </div>
-    <div id="lane4" class="lane">
-      <div id="runner4" class="runner"></div>
-      <div id="name4" class="name-label"></div>
-    </div>
-  </div>
-</div>
+      <!-- TRACK -->
+      <div class="track-container">
+        <div id="track">
+          <div id="lane1" class="lane">
+            <div id="runner1" class="runner"></div>
+            <div id="name1" class="name-label"></div>
+          </div>
+          <div id="lane2" class="lane">
+            <div id="runner2" class="runner"></div>
+            <div id="name2" class="name-label"></div>
+          </div>
+          <div id="lane3" class="lane">
+            <div id="runner3" class="runner"></div>
+            <div id="name3" class="name-label"></div>
+          </div>
+          <div id="lane4" class="lane">
+            <div id="runner4" class="runner"></div>
+            <div id="name4" class="name-label"></div>
+          </div>
+        </div>
+      </div>
 
+      <!-- RESULTS -->
+      <div id="results" style="display:none;">
+        <h2>
+          <div style="font-size:2rem; margin-bottom:0.5rem;">🏆</div>
+          RACE RESULTS
+        </h2>
 
+        <div id="leaderboard"></div>
 
+        <div style="margin-top:10px;">
+          <button class="play-button" onclick="resetGame()">Play Again</button>
+        </div>
 
+        <div id="adSlot" style="margin:1rem auto 0; text-align:center;">
+          <p style="opacity:.7;font-size:.8rem;">[Google Ad Placeholder]</p>
+        </div>
+      </div>
 
-    <!-- RESULTS (moved inside screen) -->
-<!-- RESULTS -->
-<div id="results" style="display:none;">
-  <h2>
-    <div style="font-size:2rem; margin-bottom:0.5rem;">🏆</div>
-    RACE RESULTS
-  </h2>
-
-  <div id="leaderboard"></div>
-
-  <div class="pixel-button play-again" onclick="resetGame()">
-    <span>PLAY AGAIN</span>
-  </div>
-
-  <!-- Ad stays INSIDE results so it hides with results -->
-  <div id="adSlot" style="margin:1rem auto 0; text-align:center;">
-    <p style="opacity:.7;font-size:.8rem;">[Google Ad Placeholder]</p>
-  </div>
-</div>
-
-
-
-
-   <!-- MOBILE CONTROLS (arcade panel) -->
-    <!-- MOBILE CONTROLS (arcade panel) -->
-    <div id="mobileControls" class="mobile-controls">
-      <div id="controlLayout"></div>
+      <!-- MOBILE CONTROLS -->
+      <div id="mobileControls" class="mobile-controls">
+        <div id="controlLayout"></div>
+      </div>
     </div>
 
+    <!-- SOCKET + GAME -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
 
-<!-- ===== NEW AUDIO ===== -->
-
-
-
-  <!-- SOCKET + GAME -->
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js"></script>
-
-  <!-- Tiny helpers: set dock padding and keep fields visible on focus -->
-  <script>
-    (function () {
-      function updateDockPadding() {
-        var dock = document.getElementById('lobbyDock');
-        if (!dock) return;
-        var h = dock.offsetHeight || 160;
-        document.documentElement.style.setProperty('--dockH', h + 'px');
-      }
-      function focusIntoView(e) {
-        var screen = document.getElementById('screen');
-        if (!screen) return;
-        // Delay so iOS keyboard layout happens first
-        setTimeout(function () {
-          if (e.target && e.target.scrollIntoView) {
-            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }, 120);
-      }
-      window.addEventListener('load', updateDockPadding);
-      window.addEventListener('resize', updateDockPadding);
-      document.addEventListener('DOMContentLoaded', function () {
-        ['player1-name','player2-name','player3-name','player4-name'].forEach(function (id) {
-          var el = document.getElementById(id);
-          if (el) {
-            el.addEventListener('focus', focusIntoView);
-          }
+    <!-- Dock padding + keyboard helpers (kept) -->
+    <script>
+      (function () {
+        function updateDockPadding() {
+          var dock = document.getElementById('lobbyDock');
+          if (!dock) return;
+          var h = dock.offsetHeight || 160;
+          document.documentElement.style.setProperty('--dockH', h + 'px');
+        }
+        function focusIntoView(e) {
+          var screen = document.getElementById('screen');
+          if (!screen) return;
+          setTimeout(function () {
+            if (e.target && e.target.scrollIntoView) {
+              e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 120);
+        }
+        window.addEventListener('load', updateDockPadding);
+        window.addEventListener('resize', updateDockPadding);
+        document.addEventListener('DOMContentLoaded', function () {
+          ['player1-name','player2-name','player3-name','player4-name'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('focus', focusIntoView);
+          });
         });
-      });
-    })();
-  </script>
-  
-<!-- ===== GOOGLE ANALYTICS + COOKIE CONSENT ===== -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXX"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-XXXXXXX');
-</script>
+      })();
+    </script>
 
-<div id="cookieBanner" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#fff;padding:10px;text-align:center;z-index:6000;">
-  This site uses cookies for analytics and ads.
-  <button id="acceptCookies">Accept</button>
-</div>
-<script>
-  document.getElementById('acceptCookies').onclick = function() {
-    document.getElementById('cookieBanner').style.display = 'none';
-  };
-</script>
-<script>
-  function updateCookiePadding() {
-    const banner = document.getElementById('cookieBanner');
-    const visible = banner && banner.style.display !== 'none';
-    const h = visible ? (banner.offsetHeight || 0) : 0;
-    document.documentElement.style.setProperty('--cookieH', h + 'px');
-  }
+    <!-- GA + Cookie (kept) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXX');
+    </script>
 
-  // run on load/resize and after accept
-  window.addEventListener('load', updateCookiePadding);
-  window.addEventListener('resize', updateCookiePadding);
-
-  const accept = document.getElementById('acceptCookies');
-  if (accept) {
-    accept.addEventListener('click', function () {
-      document.getElementById('cookieBanner').style.display = 'none';
-      updateCookiePadding();
-    });
-  }
-</script>
-
+    <div id="cookieBanner" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#fff;padding:10px;text-align:center;z-index:6000;">
+      This site uses cookies for analytics and ads.
+      <button id="acceptCookies">Accept</button>
+    </div>
+    <script>
+      document.getElementById('acceptCookies').onclick = function() {
+        document.getElementById('cookieBanner').style.display = 'none';
+        updateCookiePadding();
+      };
+      function updateCookiePadding() {
+        const banner = document.getElementById('cookieBanner');
+        const visible = banner && banner.style.display !== 'none';
+        const h = visible ? (banner.offsetHeight || 0) : 0;
+        document.documentElement.style.setProperty('--cookieH', h + 'px');
+      }
+      window.addEventListener('load', updateCookiePadding);
+      window.addEventListener('resize', updateCookiePadding);
+    </script>
+  </div>
 </body>
 </html>

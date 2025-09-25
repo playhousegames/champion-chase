@@ -37,10 +37,10 @@ var eventListenersSetup = false;
 ------------------------------ */
 var gameGraphics = {
   characters: {
-    1: { frames: [], loaded: false }, // Moose
-    2: { frames: [], loaded: false }, // Wolf
-    3: { frames: [], loaded: false }, // Horse
-    4: { frames: [], loaded: false }  // Panda
+    1: { frames: [], loaded: false }, // Tamago
+    2: { frames: [], loaded: false }, // Salmon
+    3: { frames: [], loaded: false }, // Maki
+    4: { frames: [], loaded: false }  // Maguro
   },
 
   loadCharacterFrames: function(characterId, frameUrls) {
@@ -51,40 +51,52 @@ var gameGraphics = {
     return true;
   },
 
+  // Tamago
   loadCharacter1Frames: function() {
     return this.loadCharacterFrames(1, [
-      "images/moose_1.png","images/moose_2.png","images/moose_3.png",
-      "images/moose_4.png","images/moose_5.png","images/moose_6.png"
-    ]);
-  },
-  loadCharacter2Frames: function() {
-    return this.loadCharacterFrames(2, [
-      "images/wolf_1.png","images/wolf_2.png","images/wolf_3.png",
-      "images/wolf_4.png","images/wolf_5.png","images/wolf_6.png"
-    ]);
-  },
-  loadCharacter3Frames: function() {
-    return this.loadCharacterFrames(3, [
-      "images/horse_1.png","images/horse_2.png","images/horse_3.png",
-      "images/horse_4.png","images/horse_5.png","images/horse_6.png"
-    ]);
-  },
-  loadCharacter4Frames: function() {
-    return this.loadCharacterFrames(4, [
-      "images/panda_1.png","images/panda_2.png","images/panda_3.png",
-      "images/panda_4.png","images/panda_5.png","images/panda_6.png"
+      "images/tamago_nigri_1.png",
+      "images/tamago_nigri_2.png",
+      "images/tamago_nigri_3.png",
+      "images/tamago_nigri_4.png"
     ]);
   },
 
-  loadAllAnimalCharacters: function() {
+  // Salmon
+  loadCharacter2Frames: function() {
+    return this.loadCharacterFrames(2, [
+      "images/salmon_nigiri_1.png",
+      "images/salmon_nigiri_2.png",
+      "images/salmon_nigiri_3.png",
+      "images/salmon_nigiri_4.png"
+    ]);
+  },
+
+  // Maki
+  loadCharacter3Frames: function() {
+    return this.loadCharacterFrames(3, [
+      "images/maki_roll_1.png",
+      "images/maki_roll_2.png",
+      "images/maki_roll_3.png",
+      "images/maki_roll_4.png"
+    ]);
+  },
+
+  // Maguro (Tuna)
+  loadCharacter4Frames: function() {
+    return this.loadCharacterFrames(4, [
+      "images/tuna_sushi_1.png",
+      "images/tuna_sushi_2.png",
+      "images/tuna_sushi_3.png",
+      "images/tuna_sushi_4.png"
+    ]);
+  },
+
+  loadAllSushiCharacters: function() {
     this.loadCharacter1Frames();
     this.loadCharacter2Frames();
     this.loadCharacter3Frames();
     this.loadCharacter4Frames();
   },
-
-
-
 
   // Apply first sprite frame + store frames on element for animation
   updateRunnerSprite: function(playerId) {
@@ -122,6 +134,7 @@ var gameGraphics = {
 
 
 
+
 function launchTickerTape() {
   const container = document.querySelector('.track-container');
   if (!container) return;
@@ -136,7 +149,7 @@ function launchTickerTape() {
 
   for (let i = 0; i < 30; i++) {
     const tape = document.createElement('div');
-    tape.className = 'ticker-tape';
+    tape.className = 'confetti-tape';
     tape.style.left = Math.random() * container.offsetWidth + 'px';
     tape.style.top = '-16px';
     tape.style.backgroundImage = `url(${tapes[Math.floor(Math.random() * tapes.length)]})`;
@@ -320,7 +333,8 @@ function initGame() {
   document.addEventListener('touchstart', function(){ initSounds(); }, { once: true });
 
   // load sprites
-  gameGraphics.loadAllAnimalCharacters();
+  gameGraphics.loadAllSushiCharacters();
+
 
   if (eventListenersSetup) return;
   eventListenersSetup = true;
@@ -466,11 +480,23 @@ if (data.hostSocketId && player.socketId === data.hostSocketId) {
       avatar.style.imageRendering = 'pixelated';
       avatar.alt = player.name;
 
-      var upper = player.name.toUpperCase();
-if (upper.includes('HORSE')) avatar.src = 'images/horse_1.png';
-else if (upper.includes('MOOSE')) avatar.src = 'images/moose_1.png';
-else if (upper.includes('PANDA')) avatar.src = 'images/panda_1.png';
-else if (upper.includes('WOLF'))  avatar.src = 'images/wolf_1.png';
+// Assign sushi avatar based on player name
+var upper = player.name.toUpperCase();
+
+if (upper.includes('TAMAGO')) {
+  avatar.src = 'images/tamago_nigri_1.png';
+} else if (upper.includes('SALMON')) {
+  avatar.src = 'images/salmon_nigiri_1.png';
+} else if (upper.includes('MAKI')) {
+  avatar.src = 'images/maki_roll_1.png';
+} else if (upper.includes('MAGURO')) {
+  avatar.src = 'images/tuna_sushi_1.png';
+} else {
+  // fallback if name doesn’t match
+  avatar.src = 'images/maki_roll_1.png';
+}
+
+
 
 
       var label = document.createElement('span');
@@ -683,7 +709,8 @@ function getPlayerColor(i) {
 }
 
 /* ------------------------------
-   10) MOBILE CONTROLS (my players only, dual buttons)
+/* ------------------------------
+   3) MOBILE CONTROLS (Blocky Pixel Buttons)
 ------------------------------ */
 function setupMobileControls() {
   var controlLayout = document.getElementById('controlLayout');
@@ -691,54 +718,82 @@ function setupMobileControls() {
 
   controlLayout.innerHTML = '';
 
-  // Only render controls for players belonging to THIS socket
+  // Find my players
   var myPlayers = [];
   for (var k in gameState.players) {
     var p = gameState.players[k];
     if (p && p.socketId === socket.id) myPlayers.push(p);
   }
-
-  if (myPlayers.length === 0) {
-    return; // spectator mode on this device
-  }
+  if (myPlayers.length === 0) return;
 
   myPlayers.forEach(function(player){
     var wrapper = document.createElement('div');
     wrapper.className = 'player-touch-controls player' + player.id + ' dual';
-    wrapper.innerHTML = ''
-      + '<div class="control-player-label" style="color:'+ getPlayerColor(player.id) +'">'
-      + (player.name || ('Runner ' + player.id)).toUpperCase()
-      + '</div>'
-      + '<div class="dual-buttons">'
-      + '  <div class="touch-btn tap-btn small" data-player="'+player.id+'" data-side="L">TAP</div>'
-      + '  <div class="touch-btn tap-btn small" data-player="'+player.id+'" data-side="R">TAP</div>'
-      + '</div>';
+    wrapper.style.marginBottom = "20px";
+
+    wrapper.innerHTML = `
+      <div class="control-player-label" style="margin-bottom:10px;">
+        ${(player.name || ('Runner ' + player.id)).toUpperCase()}
+      </div>
+      <div class="dual-buttons">
+        <button class="touch-btn" data-player="${player.id}" data-side="L">L</button>
+        <button class="touch-btn" data-player="${player.id}" data-side="R">R</button>
+      </div>`;
     controlLayout.appendChild(wrapper);
   });
 
-  var btns = controlLayout.querySelectorAll('.tap-btn');
-  for (var i = 0; i < btns.length; i++) {
-    var btn = btns[i];
-    if (btn._bound) continue;
-    btn.style.touchAction = 'none';
-    btn.style.userSelect = 'none';
+  // Hook up press/release
+  var btns = controlLayout.querySelectorAll('.touch-btn');
+  btns.forEach(function(btn){
+    if (btn._bound) return;
 
-    (function(b){
-      var pid = parseInt(b.getAttribute('data-player'), 10);
-      var tap = function (e) { tapOnce(e, pid); };
-      var release = function (e) { tapRelease(e, pid); };
+    var pid = parseInt(btn.getAttribute('data-player'), 10);
+    var press = function(e){ tapPress(e, pid, btn); };
+    var release = function(e){ tapRelease(e, pid, btn); };
 
-      b.addEventListener('touchstart', tap,   { passive:false });
-      b.addEventListener('touchend',   release, { passive:false });
-      b.addEventListener('mousedown',  tap);
-      b.addEventListener('mouseup',    release);
+    btn.addEventListener('touchstart', press, { passive:false });
+    btn.addEventListener('touchend', release, { passive:false });
+    btn.addEventListener('mousedown', press);
+    btn.addEventListener('mouseup', release);
 
-      b.addEventListener('contextmenu', function(e){ e.preventDefault(); });
-      b.addEventListener('dragstart',   function(e){ e.preventDefault(); });
-      b._bound = true;
-    })(btn);
-  }
+    btn._bound = true;
+  });
 }
+
+function tapPress(e, playerId, btn) {
+  e.preventDefault(); e.stopPropagation();
+  if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) return;
+
+  btn.classList.add('pressed'); // visually pressed
+
+  if (!playerStates[playerId]) playerStates[playerId] = {};
+  playerStates[playerId].lastTap = Date.now();
+
+  startRunnerAnimation(playerId);
+  socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
+}
+
+function tapRelease(e, playerId, btn) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const targetBtn = btn || (e.target.closest ? e.target.closest('.touch-btn') : null);
+  if (targetBtn) {
+    targetBtn.classList.remove('pressed');
+    targetBtn.classList.remove('active');
+  }
+
+  const runner = document.getElementById('runner' + playerId);
+  if (!runner) return;
+
+  clearTimeout(runner._stopTimer);
+  runner._stopTimer = setTimeout(() => {
+    stopRunnerAnimation(playerId);
+  }, 200);
+}
+
+
+
 
 /* ------------------------------
    11) INPUT / ANIMATION CONTROL
@@ -770,16 +825,7 @@ function tapOnce(e, playerId) {
   if (navigator.vibrate) navigator.vibrate(10);
 }
 
-function tapRelease(e, playerId) {
-  e.preventDefault(); e.stopPropagation();
-  var btn = e.target.closest ? e.target.closest('.touch-btn') : null;
-  if (btn) btn.classList.remove('active');
 
-  var runner = document.getElementById('runner' + playerId);
-  if (!runner) return;
-  clearTimeout(runner._stopTimer);
-  runner._stopTimer = setTimeout(function(){ stopRunnerAnimation(playerId); }, 300);
-}
 
 /* Animation helpers */
 function startRunnerAnimation(playerId) {
@@ -1098,9 +1144,11 @@ function resetGame() {
   gameState.positions = {};
   gameState.speeds = {};
   playerStates = {};
-  sounds.stopCrowd();
 
-  // Reset UI
+  // Remove this if crowd sound is gone
+  // sounds.stopCrowd();
+
+  // Reset runners
   for (var i = 1; i <= 4; i++) {
     var runner = document.getElementById('runner' + i);
     if (runner) {
@@ -1116,6 +1164,7 @@ function resetGame() {
     }
   }
 
+  // Reset UI
   var lobby = document.getElementById('lobby');
   var statusBar = document.getElementById('statusBar');
   var track = document.getElementById('track');
@@ -1128,9 +1177,17 @@ function resetGame() {
   if (lobby) lobby.style.display = 'block';
   if (statusBar) statusBar.classList.remove('active');
   if (container) container.classList.remove('active');
-  if (track) { track.classList.remove('active'); track.style.display = 'none'; track.style.transform = 'translateX(0px)'; }
+  if (track) { 
+    track.classList.remove('active'); 
+    track.style.display = 'none'; 
+    track.style.transform = 'translateX(0px)'; 
+    track.innerHTML = ""; // clear old elements
+  }
   if (mobileControls) mobileControls.classList.remove('active');
-  if (grandstand) { grandstand.classList.remove('active'); grandstand.style.backgroundPositionX = '0px'; }
+  if (grandstand) { 
+    grandstand.classList.remove('active'); 
+    grandstand.style.backgroundPositionX = '0px'; 
+  }
   if (timer) timer.textContent = '00.000';
   if (countdown) countdown.style.display = 'none';
 
@@ -1143,8 +1200,13 @@ function resetGame() {
   // Tell server to reset
   socket.emit('resetRoom', gameState.roomId);
 
+  // Rebuild track so next race works
+  ensureFinishLine();
+  setupLanes();
+
   setTimeout(function(){ gameState.isResetting = false; }, 800);
 }
+
 
 
 /* ------------------------------

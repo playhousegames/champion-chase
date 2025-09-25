@@ -1,4 +1,4 @@
-// --- Turbo Tails server (Express + Socket.IO) ---
+// --- Sushi Sprint server (Express + Socket.IO) ---
 const express  = require('express');
 const http     = require('http');
 const socketIo = require('socket.io');
@@ -28,15 +28,17 @@ function generateRoomCode(len = 6) {
   return code;
 }
 
-// safer: server assigns names; clients can't inject rude words
-const ANIMALS = ['Moose', 'Wolf', 'Horse', 'Panda'];
-const ADJS    = ['Turbo', 'Speedy', 'Pixel', 'Retro', 'Hyper', 'Rocket', 'Mega', 'Neon'];
+// --- Sushi Sprint Racer Naming ---
+const SUSHIS = ['Tamago', 'Salmon', 'Maki', 'Maguro'];
+const ADJS   = ['Speedy', 'Spicy', 'Rolling', 'Flying', 'Rocket', 'Neon', 'Mega', 'Hyper'];
+
 function generatePlayerName(slotNum) {
   const a = ADJS[Math.floor(Math.random() * ADJS.length)];
-  const b = ANIMALS[(slotNum - 1) % ANIMALS.length];
+  const b = SUSHIS[(slotNum - 1) % SUSHIS.length];
   const n = (Math.random() * 90 + 10) | 0; // 10–99
   return `${a} ${b} ${n}`;
 }
+
 
 function getOrCreateWaitingRoom() {
   // Reuse the first room that hasn't started and has space
@@ -295,7 +297,7 @@ socket.on('startGame', (rid) => {
 // ---- Start server ----
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Turbo Tails server running on http://localhost:${PORT}`);
+  console.log(`Sushi Sprint server running on http://localhost:${PORT}`);
 
   // Print LAN URL for phones on same Wi-Fi
   const nets = os.networkInterfaces();
