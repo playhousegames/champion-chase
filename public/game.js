@@ -367,28 +367,22 @@ document.body.addEventListener('click', () => {
   }
 
   // Buttons (declare once + guard bindings)
-  var joinBtn = document.getElementById('joinRoomBtn');
-  if (joinBtn && !joinBtn._bound) {
-    joinBtn.addEventListener('click', joinRoom);
-    joinBtn._bound = true;
-  }
+// Buttons (declare once + guard bindings)
+var joinBtn = document.getElementById('joinRoomBtn');
+if (joinBtn && !joinBtn._bound) {
+  joinBtn.addEventListener('click', joinRoom);
+  joinBtn._bound = true;
+}
 
-  var startBtn = document.getElementById('startBtn');
-  if (startBtn && !startBtn._bound) {
-    startBtn.addEventListener('click', function () {
-      if (gameState.raceStarted || gameState.isResetting) return;
-      socket.emit('startGame', gameState.roomId);
-    });
-    startBtn._bound = true;
-  }
+var startBtn = document.getElementById('startBtn');
+if (startBtn && !startBtn._bound) {
+  startBtn.addEventListener('click', function () {
+    if (gameState.raceStarted || gameState.isResetting) return;
+    socket.emit('startGame', gameState.roomId);
+  });
+  startBtn._bound = true;
+}
 
-  var quickBtn = document.getElementById('quickBtn');
-  if (quickBtn && !quickBtn._bound) {
-    quickBtn.addEventListener('click', function () {
-      socket.emit('quickRace'); // server assigns us to a waiting room
-    });
-    quickBtn._bound = true;
-  }
 
   // Hide loading, show lobby, lock scroll
   var loading = document.getElementById('loadingScreen');
@@ -454,10 +448,18 @@ socket.on('playerJoined', function (data) {
   gameState.players   = (data && data.players)   ? data.players   : {};
   gameState.positions = (data && data.positions) ? data.positions : {};
   gameState.speeds    = (data && data.speeds)    ? data.speeds    : {};
+  gameState.hostSocketId = data.hostSocketId;
 
   setupLanes();
-  setupMobileControls();
+
+  // ✅ Only rebuild mobile controls if *you* are one of the players
+  if (Object.values(gameState.players).some(p => p.socketId === socket.id)) {
+    setupMobileControls();
+  }
+
   applySlotAvailability();
+
+
 
   // === Add lobby roster UI update here ===
   var playerList = document.getElementById('playerList');
@@ -518,23 +520,21 @@ if (upper.includes('TAMAGO')) {
   var playerCount = Object.keys(gameState.players).length;
   var isHost = (data && data.hostSocketId) ? (socket.id === data.hostSocketId) : false;
 
-  if (startBtn) {
-    if (isHost && playerCount >= 2 && playerCount < 4) {
-      startBtn.style.display = 'block';
-      var img = startBtn.querySelector('img');
-      if (playerCount === 2) {
-        img.src = "images/turbo_tails_start_2p_button.png";
-        img.alt = "Start with 2 Players";
-      } else if (playerCount === 3) {
-        img.src = "images/turbo_tails_start_3p_button.png";
-        img.alt = "Start with 3 Players";
-      }
-    } else if (isHost && playerCount === 4) {
-      startBtn.style.display = 'none'; // auto-start case
-    } else {
-      startBtn.style.display = 'none';
+if (startBtn) {
+  if (isHost && playerCount >= 2 && playerCount < 4) {
+    startBtn.style.display = 'block';
+    if (playerCount === 2) {
+      startBtn.textContent = "Start (2 Players)";
+    } else if (playerCount === 3) {
+      startBtn.textContent = "Start (3 Players)";
     }
+  } else if (isHost && playerCount === 4) {
+    startBtn.style.display = 'none'; // auto-start case
+  } else {
+    startBtn.style.display = 'none';
   }
+}
+
 });
 
 
@@ -555,28 +555,21 @@ socket.on('gameStarted', function (data) {
   var track   = document.getElementById('track');
   var results = document.getElementById('results');
 
-  // Hide results (and ad inside it)
   if (results) {
     results.classList.remove('active');
     results.style.display = 'none';
   }
 
-  // Show track
   if (track) {
     track.style.display = 'block';
     track.classList.add('active');
   }
 
-if (sounds.playGo) sounds.playGo();
+  if (sounds.playGo) sounds.playGo();
 
-  // Start ambience
-  // sounds.playRaceMusic();
-
-  // Pause lobby music if still playing
   var bg = document.getElementById('bgMusic');
   if (bg && !bg.paused) bg.pause();
 
-  // Reset state
   cameraState.cameraOffset = 0;
   gameState.raceStarted = true;
   gameState.raceFinished = false;
@@ -585,7 +578,6 @@ if (sounds.playGo) sounds.playGo();
   if (data && data.positions) gameState.positions = data.positions;
   if (data && data.speeds)    gameState.speeds    = data.speeds;
 
-  // Toggle UI
   var lobby = document.getElementById('lobby');
   var statusBar = document.getElementById('statusBar');
   var container = document.querySelector('.track-container');
@@ -595,13 +587,15 @@ if (sounds.playGo) sounds.playGo();
   if (lobby) lobby.style.display = 'none';
   if (statusBar) statusBar.classList.add('active');
   if (container) {
-  container.style.display = 'block';   // fix here
-  container.classList.add('active');
-}
-  if (mobileControls) mobileControls.classList.add('active');
+    container.style.display = 'block';
+    container.classList.add('active');
+  }
+  if (mobileControls) {
+    mobileControls.classList.add('active');
+    setupMobileControls();   // ✅ add the buttons
+  }
   if (grandstand) grandstand.classList.add('active');
 
-  // Setup race
   ensureFinishLine();
   setupLanes();
   startCountdown();

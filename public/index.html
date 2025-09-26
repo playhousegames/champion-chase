@@ -112,9 +112,8 @@
 
 
 
-    /* === Blocky Pixel Buttons (Unified) === */
-.play-button,
-.touch-btn {
+/* === Lobby buttons (keep blocky pixel look) === */
+.play-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -123,23 +122,17 @@
   text-transform: uppercase;
   letter-spacing: .1em;
   cursor: pointer;
-    outline: none;
-  border: none;
 
-  /* Size (tap buttons are square, lobby buttons scale by padding) */
   min-width: 140px;
   min-height: 48px;
 
-  /* Flat background + square border */
   background: var(--hot-tuna-red);
   color: var(--pure-rice-white);
   border: 4px solid var(--ocean-blue);
   border-radius: 0;
 
-  /* Pixel shadow */
   box-shadow: 4px 4px 0 #000;
 
-  /* Chunky text outline */
   text-shadow:
     2px  2px 0 #000,
    -2px  2px 0 #000,
@@ -147,37 +140,70 @@
    -2px -2px 0 #000;
 }
 
-.play-button:hover,
-.touch-btn:hover {
+.play-button:hover {
   transform: translate(-2px, -2px);
   box-shadow: 6px 6px 0 #000;
 }
 
-.play-button:active,
-/* Use images for game touch buttons */
-.touch-btn.pressed,
-.touch-btn.active {
-  transform: translateY(2px);
-  box-shadow: none;
-  background-image: url('images/red_button_pressed.png') !important;
-  background-color: transparent !important;
-  color: transparent !important;
+.play-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #000;
 }
 
-/* Mobile tap buttons square and centered */
+
+/* === Game tap buttons (arcade image style) === */
+/* === Game tap buttons (arcade image-only style) === */
+/* === Game tap buttons (arcade image-only style) === */
 .touch-btn {
-  width: 120px;
-  height: 120px;
-  min-width: unset;
-  min-height: unset;
+  width: 140px;
+  height: 140px;
+
+  /* Default image */
+  background: transparent url('images/red_button_not_pressed.png') center/contain no-repeat;
+
+  /* Strip away all inherited button styles */
+  border: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  /* Hide fallback text */
+  text-indent: -9999px;
+  overflow: hidden;
+  color: transparent;
+
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+  cursor: pointer;
 }
 
-.dual-buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 22px;
+.touch-btn:focus,
+.touch-btn:active {
+  outline: none;
+  border: none;
+  box-shadow: none;
 }
+
+.touch-btn.active,
+.touch-btn.pressed {
+  background-image: url('images/red_button_pressed.png');
+  transform: translateY(2px);
+}
+
+/* Mobile size */
+@media (max-width: 480px) {
+  .touch-btn {
+    width: 120px;
+    height: 120px;
+  }
+}
+
+
+
 
 /* Center lobby logo and buttons on mobile */
 @media (max-width: 600px) {
@@ -518,17 +544,23 @@
       </div>
 
       <!-- RESULTS -->
-      <div id="results" style="display:none;">
-        <h2>
-          <div style="font-size:2rem; margin-bottom:0.5rem;">🏆</div>
-          RACE RESULTS
-        </h2>
+<!-- RESULTS -->
+<div id="results" style="display:none;">
+  <h2>
+    <div style="font-size:2rem; margin-bottom:0.5rem;">🏆</div>
+    RACE RESULTS
+  </h2>
+  <div id="leaderboard"></div>
+  <div style="margin-top:10px;">
+    <button class="play-button" onclick="resetGame()">Play Again</button>
+  </div>
+</div>
 
-        <div id="leaderboard"></div>
+<!-- MOBILE CONTROLS -->
+<div id="mobileControls" class="mobile-controls">
+  <div id="controlLayout"></div>
+</div>
 
-        <div style="margin-top:10px;">
-          <button class="play-button" onclick="resetGame()">Play Again</button>
-        </div>
 
 <div id="adSlot" style="margin:1rem auto 0; text-align:center;">
   <!-- SushiSprint Ad -->
