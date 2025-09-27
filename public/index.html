@@ -194,6 +194,136 @@
   transform: translateY(2px);
 }
 
+/* Add these new animations to your existing CSS */
+@keyframes powerUpFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes cherryFall {
+  0% { transform: translateY(-20px) rotate(0deg); }
+  100% { transform: translateY(400px) rotate(360deg); }
+}
+
+@keyframes cherryFallFullScreen {
+  0% { 
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% { 
+    transform: translateY(100vh) rotate(360deg);
+    opacity: 0.3;
+  }
+}
+
+@keyframes speedZonePulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
+
+
+
+@keyframes speedBoostText {
+  0% { opacity: 1; transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.2); }
+  100% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+}
+
+@keyframes announceSlide {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  80% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
+
+@keyframes powerUpText {
+  0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
+
+.runner.speed-boost {
+  filter: drop-shadow(0 0 10px #FFD700);
+}
+
+.runner.slowed {
+  filter: drop-shadow(0 0 5px #8B4513);
+}
+
+.runner.shielded {
+  filter: drop-shadow(0 0 8px #00FFFF);
+}
+
+/* Kanji Effects */
+.kanji-effect .kanji-main {
+  font-size: 3rem;
+  text-shadow: 3px 3px 0 #000, -2px -2px 0 #000;
+  margin-bottom: 5px;
+}
+
+.kanji-effect .kanji-meaning {
+  font-size: 0.8rem;
+  font-family: 'Press Start 2P', monospace;
+  text-shadow: 1px 1px 0 #000;
+  letter-spacing: 1px;
+}
+
+@keyframes kanjiPlayerPop {
+  0% { 
+    opacity: 0; 
+    transform: translateY(20px) scale(0.5); 
+  }
+  20% { 
+    opacity: 1; 
+    transform: translateY(-10px) scale(1.2); 
+  }
+  50% { 
+    transform: translateY(-20px) scale(1); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translateY(-40px) scale(0.8); 
+  }
+}
+
+
+@keyframes kanjiGlobalPop {
+  0% { 
+    opacity: 0; 
+    transform: translateX(-50%) scale(0.3); 
+  }
+  15% { 
+    opacity: 1; 
+    transform: translateX(-50%) scale(1.3); 
+  }
+  30% { 
+    transform: translateX(-50%) scale(1); 
+  }
+  70% { 
+    opacity: 1; 
+    transform: translateX(-50%) scale(1); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translateX(-50%) scale(0.7); 
+  }
+}
+
+@keyframes powerUpCollect {
+  0% { 
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% { 
+    transform: scale(1.3) rotate(180deg);
+    opacity: 0.8;
+  }
+  100% { 
+    transform: scale(0) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+
 /* Mobile size */
 @media (max-width: 480px) {
   .touch-btn {
@@ -222,6 +352,8 @@
     max-width: 240px;
   }
 }
+
+
 
 
     /* ===== Arcade cabinet frame (kept) ===== */
@@ -459,18 +591,34 @@
 
     
 
-    <audio id="bgMusic" src="music/chiptune_theme_catchy.wav" loop></audio>
-    <button id="muteBtn" style="position:fixed;top:10px;right:10px;z-index:5000;">🔊</button>
-    <script>
-      const bgMusic = document.getElementById('bgMusic');
-      const muteBtn = document.getElementById('muteBtn');
-      bgMusic.volume = 0.35;
-      muteBtn.addEventListener('click', () => {
-        if (bgMusic.paused) { bgMusic.play(); muteBtn.textContent = "🔊"; }
-        else { bgMusic.pause(); muteBtn.textContent = "🔇"; }
-      });
-      window.addEventListener('load', () => { bgMusic.play().catch(()=>{}); });
-    </script>
+<audio id="bgMusic" src="music/chiptune_theme_catchy.wav" loop></audio>
+<button id="muteBtn" style="position:fixed;top:10px;right:10px;z-index:5000;">🔊</button>
+<script>
+  const bgMusic = document.getElementById('bgMusic');
+  const muteBtn = document.getElementById('muteBtn');
+  
+  if (bgMusic && muteBtn) {
+    bgMusic.volume = 0.35;
+    
+    muteBtn.addEventListener('click', () => {
+      if (bgMusic.paused) { 
+        bgMusic.play().catch(err => console.log('Music play failed:', err)); 
+        muteBtn.textContent = "🔊"; 
+      } else { 
+        bgMusic.pause(); 
+        muteBtn.textContent = "🔇"; 
+      }
+    });
+
+    // Start music on first user interaction
+    function startMusicOnInteraction() {
+      bgMusic.play().catch(err => console.log('Music will start when user clicks mute button'));
+    }
+    
+    document.addEventListener('click', startMusicOnInteraction, { once: true });
+    document.addEventListener('touchstart', startMusicOnInteraction, { once: true });
+  }
+</script>
 
 <!-- Race HUD (shows only during race) -->
 <div id="statusBar">

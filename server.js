@@ -39,7 +39,6 @@ function generatePlayerName(slotNum) {
   return `${a} ${b} ${n}`;
 }
 
-
 function getOrCreateWaitingRoom() {
   // Reuse the first room that hasn't started and has space
   for (const [rid, room] of Object.entries(rooms)) {
@@ -76,7 +75,7 @@ io.on('connection', (socket) => {
     socket.join(rid);
     socket.roomId = rid;
 
-    // Tell only this socket which room it’s in (kept internal)
+    // Tell only this socket which room it's in (kept internal)
     socket.emit('roomAssigned', { roomId: rid, maxPlayers: MAX_PLAYERS, minToStart: MIN_TO_START });
 
     // Send current roster so client can grey out taken slots immediately
@@ -120,7 +119,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // 🔒 Slot guard: if another socket already owns this playerNum, reject
+    // Slot guard: if another socket already owns this playerNum, reject
     const existing = room.players[playerNum];
     if (existing && existing.socketId !== socket.id) {
       socket.emit('slotTaken', { playerNum });
@@ -168,26 +167,23 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Host starts the race (server-enforced host check)
-// Host can start race (needs at least 2 players)
-// Auto-start still happens separately when 4 players join
-socket.on('startGame', (rid) => {
-  const room = rooms[rid];
-  if (!room || room.gameStarted) return;
+  // Host starts the race (needs at least 2 players)
+  socket.on('startGame', (rid) => {
+    const room = rooms[rid];
+    if (!room || room.gameStarted) return;
 
-  const playerCount = Object.keys(room.players).length;
-  if (playerCount < 2) {
-    socket.emit('errorMessage', { text: 'Need at least 2 players to start.' });
-    return;
-  }
+    const playerCount = Object.keys(room.players).length;
+    if (playerCount < 2) {
+      socket.emit('errorMessage', { text: 'Need at least 2 players to start.' });
+      return;
+    }
 
-  io.to(rid).emit('gameStarted', {
-    positions: room.positions,
-    speeds: room.speeds
+    io.to(rid).emit('gameStarted', {
+      positions: room.positions,
+      speeds: room.speeds
+    });
+    room.gameStarted = true;
   });
-  room.gameStarted = true;
-});
-
 
   // Tap action (boost based on tap cadence) + ANIMATION SYNC
   socket.on('playerAction', ({ roomId: rid, playerId }) => {
@@ -220,7 +216,7 @@ socket.on('startGame', (rid) => {
     }, 300);
   });
 
-  // Client reports a finish time (simple: trust client for now)
+  // Client reports a finish time
   socket.on('checkFinish', ({ roomId: rid, playerId, finishTime }) => {
     const room = rooms[rid];
     if (!room) return;
@@ -235,27 +231,49 @@ socket.on('startGame', (rid) => {
     io.to(rid).emit('endRace', room.finishTimes);
   });
 
-  // Reset a room back to lobby
+  // Reset a room back to lobby (PROPER IMPLEMENTATION)
   socket.on('resetRoom', (rid) => {
     const room = rooms[rid];
     if (!room) return;
     room.isResetting = true;
 
-    setTimeout(() => {
-      rooms[rid] = {
-        players: {},
-        positions: {},
-        speeds: {},
-        gameStarted: false,
-        finishTimes: {},
-        isResetting: false,
-        hostSocketId: null,
-        tapStreaks: {},
-        stopTimers: {}
-      };
-      io.to(rid).emit('roomReset', {});
-      console.log(`Room ${rid} reset`);
-    }, 500);
+    // Get all current room members before clearing
+    const memberSockets = Array.from(io.sockets.adapter.rooms.get(rid) || []);
+    
+    // First, notify everyone that reset is starting
+    io.to(rid).emit('resetStarting');
+    
+    // Clear the room state
+    rooms[rid] = {
+      players: {},
+      positions: {},
+      speeds: {},
+      gameStarted: false,
+      finishTimes: {},
+      isResetting: false,
+      hostSocketId: null,
+      tapStreaks: {},
+      stopTimers: {}
+    };
+
+    // Force all sockets to leave the room and clear their roomId
+    memberSockets.forEach(socketId => {
+      const memberSocket = io.sockets.sockets.get(socketId);
+      if (memberSocket) {
+        memberSocket.leave(rid);
+        memberSocket.roomId = null; // Clear the cached room ID
+      }
+    });
+
+    // Send individual reset confirmations to each member
+    memberSockets.forEach(socketId => {
+      io.to(socketId).emit('roomReset', { 
+        roomCleared: true,
+        playersRemoved: memberSockets.length 
+      });
+    });
+
+    console.log(`Room ${rid} reset - ${memberSockets.length} players removed`);
   });
 
   // Handle disconnects (remove players, reassign host, rebroadcast roster)
