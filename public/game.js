@@ -1345,9 +1345,24 @@ socket.on('gameStarted', function (data) {
 
 socket.on('updateState', function (data) {
   if (gameState.isResetting || gameState.raceFinished) return;
+  
   if (data && data.positions) {
-    for (var k in data.positions) gameState.positions[k] = data.positions[k];
+    for (var k in data.positions) {
+      // Only update if server position is significantly different
+      var serverPos = data.positions[k];
+      var localPos = gameState.positions[k] || 20;
+      
+      if (Math.abs(serverPos - localPos) > 5) {
+        // Reconcile with server position
+        gameState.positions[k] = serverPos;
+        var runner = document.getElementById('runner' + k);
+        if (runner) {
+          runner.style.left = serverPos + 'px';
+        }
+      }
+    }
   }
+  
   if (data && data.speeds) {
     for (var s in data.speeds) gameState.speeds[s] = data.speeds[s];
   }
@@ -1521,18 +1536,29 @@ function tapPress(e, playerId, btn) {
   
   if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) return;
 
-  btn.classList.add('pressed'); // visually pressed
+  btn.classList.add('pressed');
 
   if (!playerStates[playerId]) playerStates[playerId] = {};
   playerStates[playerId].lastTap = Date.now();
 
+  // PREDICTIVE MOVEMENT - Move locally first
+  var currentPos = gameState.positions[playerId] || 20;
+  var predictedMovement = 8; // Base movement amount
+  var newPosition = currentPos + predictedMovement;
+  
+  // Update local position immediately
+  gameState.positions[playerId] = newPosition;
+  var runner = document.getElementById('runner' + playerId);
+  if (runner) {
+    runner.style.left = newPosition + 'px';
+  }
+
+  // Start animation and send to server
   startRunnerAnimation(playerId);
   socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
 
-  // Add this line to spawn dust trails:
+  // Spawn dust and play sounds
   spawnDust(playerId);
-
-  // Play tap sound + vibration
   if (sounds.initialized) sounds.playTap();
   if (navigator.vibrate) navigator.vibrate(10);
 }
