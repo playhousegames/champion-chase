@@ -690,14 +690,30 @@ var gameGraphics = {
     4: { frames: [], loaded: false }  // Maguro
   },
 
+  
+  // ADD THIS NEW METHOD HERE:
+  preloadImages: function(playerId) {
+    var character = this.characters[playerId];
+    if (!character || !character.frames) return;
+    
+    character.frames.forEach(function(frameUrl) {
+      var img = new Image();
+      img.src = frameUrl;
+    });
+  },
+
+  // UPDATE THIS EXISTING METHOD:
   loadCharacterFrames: function(characterId, frameUrls) {
     if (!this.characters[characterId]) return false;
     this.characters[characterId].frames = frameUrls.slice();
     this.characters[characterId].loaded = true;
+    
+    // ADD THIS LINE:
+    this.preloadImages(characterId);
+    
     this.updateRunnerSprite(characterId);
     return true;
   },
-
   // Tamago
   loadCharacter1Frames: function() {
     return this.loadCharacterFrames(1, [
@@ -1711,13 +1727,24 @@ function updateGame() {
   var container = document.querySelector('.track-container');
   var grandstand = document.getElementById('grandstand');
   if (!track || !container || leadingPlayerId === null) return;
-  var leadingRunnerElement = document.getElementById('runner' + leadingPlayerId);
-  if (leadingRunnerElement) {
+// Camera follow: each player follows their own character
+var myPlayerId = null;
+for (var pid in gameState.players) {
+  if (gameState.players[pid].socketId === socket.id) {
+    myPlayerId = pid;
+    break;
+  }
+}
+
+if (myPlayerId) {
+  var myRunner = document.getElementById('runner' + myPlayerId);
+  if (myRunner) {
     var screenOffset = container.offsetWidth * 0.3;
-    var currentRunnerX = leadingRunnerElement.offsetLeft;
+    var currentRunnerX = myRunner.offsetLeft;
     var newOffset = Math.max(0, currentRunnerX - screenOffset);
     cameraState.cameraOffset = Math.min(newOffset, gameState.trackWidth - container.offsetWidth);
   }
+}
   
   // Apply transforms
   track.style.transform = 'translateX(-' + cameraState.cameraOffset + 'px)';
