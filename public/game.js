@@ -116,43 +116,45 @@ var kanjiEffects = {
 /* ------------------------------
    POWER-UP SYSTEM - FIXED
 ------------------------------ */
+// IMPROVED POWER-UP SYSTEM - Replace your existing powerUpSystem object
+
 var powerUpSystem = {
   types: {
-    SOY_SPLASH: { 
+    WASABI_RUSH: { 
+      id: 'wasabi', 
+      name: 'WASABI RUSH!', 
+      color: '#00FF88', 
+      icon: '🔥',
+      duration: 3000,
+      effect: 'speedBoost'
+    },
+    SOY_TRAP: { 
       id: 'soy', 
-      name: 'Soy Splash', 
+      name: 'SOY TRAP', 
       color: '#8B4513', 
       icon: '🍶',
       duration: 2000,
       effect: 'slowOpponents'
     },
-    GINGER_BOOST: { 
-      id: 'ginger', 
-      name: 'Ginger Rush', 
-      color: '#FFD700', 
-      icon: '🫚',
-      duration: 3000,
-      effect: 'speedBoost'
-    },
-    CHOPSTICK_GRAB: { 
-      id: 'chopsticks', 
-      name: 'Chopstick Pull', 
-      color: '#8B4513', 
-      icon: '🥢',
-      duration: 1000,
+    TELEPORT_ROLL: { 
+      id: 'teleport', 
+      name: 'TELEPORT!', 
+      color: '#FF00FF', 
+      icon: '⚡',
+      duration: 500,
       effect: 'instantForward'
     },
-    RICE_SHIELD: { 
-      id: 'rice', 
-      name: 'Rice Shield', 
-      color: '#FFFFFF', 
-      icon: '🍚',
-      duration: 5000,
-      effect: 'shield'
+    MEGA_BOOST: { 
+      id: 'mega', 
+      name: 'MEGA BOOST!', 
+      color: '#FFD700', 
+      icon: '⭐',
+      duration: 4000,
+      effect: 'megaBoost'
     }
   },
 
-  activePowerUps: {}, // playerId -> powerup data
+  activePowerUps: {},
 
   createPowerUp: function(type, x, y) {
     const powerUp = document.createElement('div');
@@ -174,6 +176,7 @@ var powerUpSystem = {
       border: 2px solid #FFD700;
       animation: powerUpFloat 2s ease-in-out infinite;
       z-index: 10;
+      box-shadow: 0 0 10px ${type.color};
     `;
     
     const track = document.getElementById('track');
@@ -201,42 +204,36 @@ var powerUpSystem = {
     }
   },
 
-checkCollisions: function(playerId) {
-  const runner = document.getElementById('runner' + playerId);
-  if (!runner) return;
-  
-  const powerUps = document.querySelectorAll('.power-up');
-  powerUps.forEach(powerUp => {
-    const runnerRect = runner.getBoundingClientRect();
-    const powerUpRect = powerUp.getBoundingClientRect();
+  checkCollisions: function(playerId) {
+    const runner = document.getElementById('runner' + playerId);
+    if (!runner) return;
     
-    if (this.isColliding(runnerRect, powerUpRect)) {
-      const typeId = powerUp.dataset.type;
-      console.log('Power-up collision detected! Type:', typeId); // DEBUG
+    const powerUps = document.querySelectorAll('.power-up');
+    powerUps.forEach(powerUp => {
+      const runnerRect = runner.getBoundingClientRect();
+      const powerUpRect = powerUp.getBoundingClientRect();
       
-      let matchedType = null;
-      for (const [key, type] of Object.entries(this.types)) {
-        if (type.id === typeId) {
-          matchedType = type;
-          break;
+      if (this.isColliding(runnerRect, powerUpRect)) {
+        const typeId = powerUp.dataset.type;
+        
+        let matchedType = null;
+        for (const [key, type] of Object.entries(this.types)) {
+          if (type.id === typeId) {
+            matchedType = type;
+            break;
+          }
+        }
+        
+        if (matchedType) {
+          this.playPowerUpSound(matchedType.effect);
+          this.createCollectionParticles(powerUpRect);
+          this.removePowerUpWithEffect(powerUp);
+          this.activatePowerUp(playerId, matchedType);
+          this.showPowerUpEffect(playerId, matchedType);
         }
       }
-      
-      if (matchedType) {
-        console.log('Matched type found:', matchedType.name, 'Effect:', matchedType.effect); // DEBUG
-        
-        // Play sound and animate removal
-        this.playPowerUpSound(matchedType.effect);
-        this.removePowerUpWithEffect(powerUp);
-        
-        this.activatePowerUp(playerId, matchedType);
-        this.showPowerUpEffect(playerId, matchedType);
-      } else {
-        console.log('No matching type found for typeId:', typeId); // DEBUG
-      }
-    }
-  });
-},
+    });
+  },
 
   isColliding: function(rect1, rect2) {
     return !(rect1.right < rect2.left || 
@@ -262,8 +259,8 @@ checkCollisions: function(playerId) {
       case 'instantForward':
         this.instantForward(playerId);
         break;
-      case 'shield':
-        this.activateShield(playerId);
+      case 'megaBoost':
+        this.applyMegaBoost(playerId);
         break;
     }
 
@@ -274,141 +271,175 @@ checkCollisions: function(playerId) {
     }, type.duration);
   },
 
-playPowerUpSound: function(effectType) {
-  console.log('playPowerUpSound called with:', effectType); // DEBUG
-  
-  if (!audioCtx) {
-    console.log('No audioCtx available'); // DEBUG
-    return;
-  }
-  
-  console.log('AudioCtx state:', audioCtx.state); // DEBUG
-  
-  try {
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    
-    let frequency = 500;
-    switch(effectType) {
-      case 'speedBoost': frequency = 800; break;
-      case 'slowOpponents': frequency = 200; break;
-      case 'shield': frequency = 600; break;
-      case 'instantForward': frequency = 1000; break;
-    }
-    
-    console.log('Playing frequency:', frequency); // DEBUG
-    
-    oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
-    
-    oscillator.start(audioCtx.currentTime);
-    oscillator.stop(audioCtx.currentTime + 0.2);
-    
-    console.log('Power-up sound should have played'); // DEBUG
-  } catch(e) {
-    console.warn("Power-up sound failed:", e);
-  }
-},
-
-removePowerUpWithEffect: function(powerUp) {
-  console.log('Removing power-up with effect'); // Debug log
-  
-  // Immediately hide the power-up to prevent multiple collisions
-  powerUp.style.pointerEvents = 'none';
-  powerUp.style.opacity = '0.5';
-  
-  // Add collection animation
-  powerUp.style.animation = 'powerUpCollect 0.3s ease-out forwards';
-  
-  // Remove after animation
-  setTimeout(() => {
-    if (powerUp && powerUp.parentElement) {
-      powerUp.remove();
-      console.log('Power-up removed from DOM'); // Debug log
-    }
-  }, 300);
-},
-
   applySpeedBoost: function(playerId) {
     const runner = document.getElementById('runner' + playerId);
     if (runner) {
       runner.classList.add('speed-boost');
-      // Server will handle actual speed increase through normal tap mechanics
     }
+    
+    // Actually boost: send rapid taps
+    let tapCount = 0;
+    const boostInterval = setInterval(() => {
+      if (tapCount >= 8 || !gameState.raceStarted || gameState.finishTimes[playerId]) {
+        clearInterval(boostInterval);
+        return;
+      }
+      socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
+      tapCount++;
+    }, 350); // One tap every 350ms for 3 seconds = ~8 taps
+  },
+
+  applyMegaBoost: function(playerId) {
+    const runner = document.getElementById('runner' + playerId);
+    if (runner) {
+      runner.classList.add('mega-boost');
+    }
+    
+    // MEGA boost: more taps, faster
+    let tapCount = 0;
+    const boostInterval = setInterval(() => {
+      if (tapCount >= 15 || !gameState.raceStarted || gameState.finishTimes[playerId]) {
+        clearInterval(boostInterval);
+        return;
+      }
+      socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
+      tapCount++;
+    }, 250); // One tap every 250ms for 4 seconds = ~15 taps
   },
 
   slowOpponents: function(playerId) {
+    // Actually block opponent taps for 2 seconds
     Object.keys(gameState.players).forEach(pid => {
       if (pid != playerId) {
         const runner = document.getElementById('runner' + pid);
-        if (runner) runner.classList.add('slowed');
+        if (runner) {
+          runner.classList.add('slowed');
+          
+          // Store original tap function and replace with blocked version
+          if (!playerStates[pid]) playerStates[pid] = {};
+          playerStates[pid].tapsBlocked = true;
+        }
       }
     });
     
     setTimeout(() => {
-      document.querySelectorAll('.runner.slowed').forEach(r => r.classList.remove('slowed'));
+      Object.keys(gameState.players).forEach(pid => {
+        if (pid != playerId) {
+          const runner = document.getElementById('runner' + pid);
+          if (runner) runner.classList.remove('slowed');
+          if (playerStates[pid]) playerStates[pid].tapsBlocked = false;
+        }
+      });
     }, 2000);
   },
 
   instantForward: function(playerId) {
-    // Emit multiple quick taps for instant forward movement
-    for (let i = 0; i < 5; i++) {
+    // Big jump forward with 10 rapid taps
+    for (let i = 0; i < 10; i++) {
       setTimeout(() => {
         socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
-      }, i * 50);
+      }, i * 40);
     }
-  },
-
-  activateShield: function(playerId) {
-    const runner = document.getElementById('runner' + playerId);
-    if (runner) {
-      runner.classList.add('shielded');
+    
+    // Visual effect
+    if (typeof kanjiEffects !== 'undefined') {
+      kanjiEffects.showKanji('power', playerId);
     }
   },
 
   removePowerUpEffects: function(playerId) {
     const runner = document.getElementById('runner' + playerId);
     if (runner) {
-      runner.classList.remove('speed-boost', 'shielded');
+      runner.classList.remove('speed-boost', 'mega-boost', 'shielded');
     }
   },
 
   showPowerUpEffect: function(playerId, type) {
-    const runner = document.getElementById('runner' + playerId);
-    if (!runner) return;
-
+    // Create FIXED position text that floats above everything
     const effect = document.createElement('div');
     effect.className = 'power-up-text';
     effect.textContent = type.name;
-    effect.style.cssText = `
-      position: absolute;
-      top: -30px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: ${type.color};
-      font-weight: bold;
-      font-size: 12px;
-      animation: powerUpText 2s ease-out forwards;
-      z-index: 100;
-      text-shadow: 1px 1px 0 #000;
-    `;
+    effect.style.color = type.color;
     
-    runner.appendChild(effect);
+    // Add to body, not runner, so it's not affected by track transforms
+    document.body.appendChild(effect);
     setTimeout(() => effect.remove(), 2000);
 
-    // Add kanji effects AFTER the existing effect code
-    if (type.effect === 'speedBoost' && typeof kanjiEffects !== 'undefined') {
-      kanjiEffects.showKanji('speed', playerId);
-    } else if (type.effect === 'instantForward' && typeof kanjiEffects !== 'undefined') {
-      kanjiEffects.showKanji('power', playerId);
+    // Add kanji effects
+    if (type.effect === 'speedBoost' || type.effect === 'megaBoost') {
+      if (typeof kanjiEffects !== 'undefined') {
+        kanjiEffects.showKanji('speed', playerId);
+      }
+    } else if (type.effect === 'instantForward') {
+      if (typeof kanjiEffects !== 'undefined') {
+        kanjiEffects.showKanji('power', playerId);
+      }
     }
+  },
+
+  createCollectionParticles: function(rect) {
+    // Create burst particles at collection point
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    for (let i = 0; i < 8; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'power-up-particle';
+      particle.style.left = centerX + 'px';
+      particle.style.top = centerY + 'px';
+      particle.style.backgroundColor = '#FFD700';
+      
+      const angle = (Math.PI * 2 * i) / 8;
+      const distance = 50 + Math.random() * 30;
+      particle.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+      particle.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+      
+      document.body.appendChild(particle);
+      setTimeout(() => particle.remove(), 800);
+    }
+  },
+
+  playPowerUpSound: function(effectType) {
+    if (!audioCtx) return;
+    
+    try {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      let frequency = 500;
+      switch(effectType) {
+        case 'speedBoost': frequency = 800; break;
+        case 'megaBoost': frequency = 1000; break;
+        case 'slowOpponents': frequency = 200; break;
+        case 'instantForward': frequency = 1200; break;
+      }
+      
+      oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+      oscillator.type = 'square';
+      
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + 0.3);
+    } catch(e) {
+      console.warn("Power-up sound failed:", e);
+    }
+  },
+
+  removePowerUpWithEffect: function(powerUp) {
+    powerUp.style.pointerEvents = 'none';
+    powerUp.style.animation = 'powerUpCollect 0.3s ease-out forwards';
+    
+    setTimeout(() => {
+      if (powerUp && powerUp.parentElement) {
+        powerUp.remove();
+      }
+    }, 300);
   }
 };
 
@@ -1725,6 +1756,12 @@ function tapPress(e, playerId, btn) {
   // PREVENT TAPPING DURING COUNTDOWN
   if (gameState.countdownActive) {
     console.log('Tapping blocked - countdown in progress');
+    return;
+  }
+  
+  // NEW: Check if taps are blocked by SOY_TRAP
+  if (playerStates[playerId] && playerStates[playerId].tapsBlocked) {
+    console.log('Taps blocked by power-up!');
     return;
   }
   
