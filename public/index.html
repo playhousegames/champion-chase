@@ -726,6 +726,21 @@
   /* Force hardware acceleration on Android */
   -webkit-transform: translateZ(0);
   -webkit-backface-visibility: hidden;
+    background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+}
+
+.runner {
+  /* ... existing styles ... */
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+}
+
+/* Make sure running animation doesn't hide background */
+.runner.running {
+  /* Keep all background properties */
 }
     .name-label { position: absolute; top: 2px; left: 10px; font-size: .75rem; color: yellow; }
 

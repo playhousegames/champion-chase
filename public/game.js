@@ -113,30 +113,49 @@ var defenseSystem = {
   blockWindows: {},
   pressStates: {}, // Track which buttons are currently pressed
   
-  initiateAttack: function(targetPlayerId, attackType, duration) {
-    console.log(`Attack ${attackType} incoming for player ${targetPlayerId}`);
-    
-    this.showAttackWarning(targetPlayerId, attackType);
-    
-    const blockWindowStart = Date.now() + 800;
-    const blockWindowEnd = blockWindowStart + 500;
-    
-    this.blockWindows[targetPlayerId] = {
-      start: blockWindowStart,
-      end: blockWindowEnd,
-      attackType: attackType,
-      duration: duration,
-      blocked: false
-    };
-    
+initiateAttack: function(targetPlayerId, attackType, duration) {
+  console.log(`Attack ${attackType} incoming for player ${targetPlayerId}`);
+  
+  const targetPlayer = gameState.players[targetPlayerId];
+  
+  // Don't show warning for bots
+  if (targetPlayer && targetPlayer.isBot) {
+    // Just apply the effect directly to bots without showing UI
     setTimeout(() => {
       if (this.blockWindows[targetPlayerId] && !this.blockWindows[targetPlayerId].blocked) {
-        console.log(`Player ${targetPlayerId} failed to block!`);
         this.applyAttackEffect(targetPlayerId, attackType, duration);
         delete this.blockWindows[targetPlayerId];
       }
     }, 1300);
-  },
+    return;
+  }
+  
+  // Only show warning if this is the local player (not a bot, not other players)
+  const isLocalPlayer = targetPlayer && targetPlayer.socketId === socket.id;
+  
+  if (isLocalPlayer) {
+    this.showAttackWarning(targetPlayerId, attackType);
+  }
+  
+  const blockWindowStart = Date.now() + 800;
+  const blockWindowEnd = blockWindowStart + 500;
+  
+  this.blockWindows[targetPlayerId] = {
+    start: blockWindowStart,
+    end: blockWindowEnd,
+    attackType: attackType,
+    duration: duration,
+    blocked: false
+  };
+  
+  setTimeout(() => {
+    if (this.blockWindows[targetPlayerId] && !this.blockWindows[targetPlayerId].blocked) {
+      console.log(`Player ${targetPlayerId} failed to block!`);
+      this.applyAttackEffect(targetPlayerId, attackType, duration);
+      delete this.blockWindows[targetPlayerId];
+    }
+  }, 1300);
+},
   
   // Track button press state
   registerPress: function(playerId, side) {
@@ -679,7 +698,33 @@ var powerUpSystem = {
   },
 
 slowOpponents: function(playerId) {
-  // Use defense system to give opponents a chance to block
+  // If a bot collected this, don't attack human players
+  const collector = gameState.players[playerId];
+  if (collector && collector.isBot) {
+    // Bots only slow down other bots, not humans
+    Object.keys(gameState.players).forEach(pid => {
+      if (pid != playerId) {
+        const target = gameState.players[pid];
+        if (target && target.isBot) {
+          // Apply slow effect directly to other bots
+          const runner = document.getElementById('runner' + pid);
+          if (runner) {
+            runner.classList.add('slowed');
+            if (!playerStates[pid]) playerStates[pid] = {};
+            playerStates[pid].tapsBlocked = true;
+          }
+          
+          setTimeout(() => {
+            if (runner) runner.classList.remove('slowed');
+            if (playerStates[pid]) playerStates[pid].tapsBlocked = false;
+          }, 2000);
+        }
+      }
+    });
+    return;
+  }
+  
+  // Human player collected it - use defense system for all opponents
   Object.keys(gameState.players).forEach(pid => {
     if (pid != playerId) {
       if (typeof defenseSystem !== 'undefined') {
@@ -724,51 +769,63 @@ slowOpponents: function(playerId) {
   },
 
 showPowerUpEffect: function(playerId, type) {
-  // Create FIXED position text that floats above everything
-  const effect = document.createElement('div');
-  effect.className = 'power-up-text';
-  effect.textContent = type.name;
+  const player = gameState.players[playerId];
   
-  // Better styling with readable colors and stronger shadow
-  effect.style.cssText = `
-    position: fixed !important;
-    top: 30% !important;
-    left: 50% !important;
-    transform: translateX(-50%) translateY(-50%) !important;
-    color: #FFFFFF !important;
-    font-weight: bold;
-    font-size: 20px;
-    animation: powerUpTextFloat 2s ease-out forwards;
-    z-index: 9999 !important;
-    text-shadow: 
-      3px 3px 0 #000,
-      -3px -3px 0 #000,
-      3px -3px 0 #000,
-      -3px 3px 0 #000,
-      0 0 10px ${type.color},
-      0 0 20px ${type.color};
-    pointer-events: none;
-    white-space: nowrap;
-    font-family: 'Press Start 2P', monospace;
-    letter-spacing: 1px;
-  `;
+  // ONLY show for the human player (not bots, not other human players)
+  if (!player) return;
+  if (player.isBot) return;
   
-  // Add to body, not runner, so it's not affected by track transforms
-  document.body.appendChild(effect);
-  setTimeout(() => effect.remove(), 2000);
-
-  // Add kanji effects
-  if (type.effect === 'speedBoost' || type.effect === 'megaBoost') {
-    if (typeof kanjiEffects !== 'undefined') {
-      kanjiEffects.showKanji('speed', playerId);
+  // Check if this is the local player
+  const isLocalPlayer = player.socketId === socket.id;
+  
+  // If not the local player, don't show anything
+  if (!isLocalPlayer) return;
+  
+  // Only show kanji for local player - ONCE
+  if (isLocalPlayer && typeof kanjiEffects !== 'undefined') {
+    // Determine kanji type based on power-up effect
+    let kanjiType = null;
+    if (type.effect === 'speedBoost' || type.effect === 'megaBoost') {
+      kanjiType = 'speed';
+    } else if (type.effect === 'instantForward') {
+      kanjiType = 'power';
+    } else if (type.effect === 'slowOpponents') {
+      kanjiType = 'power';
     }
-  } else if (type.effect === 'instantForward') {
-    if (typeof kanjiEffects !== 'undefined') {
-      kanjiEffects.showKanji('power', playerId);
+    
+    // Show kanji ONCE with English name underneath
+    if (kanjiType) {
+      const char = kanjiEffects.characters[kanjiType];
+      const kanji = document.createElement('div');
+      kanji.className = 'kanji-effect';
+      kanji.innerHTML = `
+        <div class="kanji-main" style="font-size: 4rem; color: ${type.color}; text-shadow: 4px 4px 0 #000, -3px -3px 0 #000; margin-bottom: 8px; font-family: 'Noto Sans JP', serif;">${char.kanji}</div>
+        <div class="kanji-meaning" style="font-size: 0.9rem; color: ${type.color}; font-family: 'Press Start 2P', monospace; text-shadow: 2px 2px 0 #000; letter-spacing: 2px;">${type.name}</div>
+      `;
+      
+      // CENTER SCREEN positioning
+      kanji.style.cssText = `
+        position: fixed;
+        top: 35%;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        z-index: 9999;
+        animation: kanjiGlobalPop 2.5s ease-out forwards;
+        pointer-events: none;
+      `;
+      
+      document.body.appendChild(kanji);
+      
+      // Clean up after animation
+      setTimeout(() => {
+        if (kanji && kanji.parentElement) {
+          kanji.remove();
+        }
+      }, 2500);
     }
   }
 },
-
   createCollectionParticles: function(rect) {
     // Create burst particles at collection point
     const centerX = rect.left + rect.width / 2;
@@ -931,76 +988,107 @@ var trackElements = {
     }
   },
 
-  checkCollisions: function(playerId) {
-    const runner = document.getElementById('runner' + playerId);
-    if (!runner) return;
-    
-    const runnerRect = runner.getBoundingClientRect();
-    
-    // Check speed zones
-    this.speedZones.forEach(zone => {
-      const zoneRect = zone.element.getBoundingClientRect();
-      if (powerUpSystem.isColliding(runnerRect, zoneRect)) {
-        this.triggerSpeedZone(playerId);
+checkCollisions: function(playerId) {
+  const runner = document.getElementById('runner' + playerId);
+  if (!runner) return;
+  
+  const runnerRect = runner.getBoundingClientRect();
+  const player = gameState.players[playerId];
+  
+  // Check speed zones
+  this.speedZones.forEach(zone => {
+    const zoneRect = zone.element.getBoundingClientRect();
+    if (powerUpSystem.isColliding(runnerRect, zoneRect)) {
+      this.triggerSpeedZone(playerId);
+      
+      // Only show effect for local player, not bots or other players
+      if (player && !player.isBot && player.socketId === socket.id) {
         this.showSpeedZoneEffect(runner);
       }
-    });
-    
-    // Check obstacles
-    this.obstacles.forEach(obstacle => {
-      const obstacleRect = obstacle.element.getBoundingClientRect();
-      if (powerUpSystem.isColliding(runnerRect, obstacleRect)) {
-        this.triggerObstacle(playerId, obstacle.type);
-      }
-    });
-  },
+    }
+  });
+  
+  // Check obstacles
+  this.obstacles.forEach(obstacle => {
+    const obstacleRect = obstacle.element.getBoundingClientRect();
+    if (powerUpSystem.isColliding(runnerRect, obstacleRect)) {
+      this.triggerObstacle(playerId, obstacle.type);
+    }
+  });
+},
 
   triggerSpeedZone: function(playerId) {
     // Emit extra movement for speed boost
     socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
   },
 
-  triggerObstacle: function(playerId, type) {
-    switch(type) {
-      case 'soy-spill':
-        // Slow down effect
-        const runner = document.getElementById('runner' + playerId);
+triggerObstacle: function(playerId, type) {
+  switch(type) {
+    case 'soy-spill':
+      // Slow down effect
+      const runner = document.getElementById('runner' + playerId);
+      const player = gameState.players[playerId];
+      
+      // Don't show effects for bots
+      if (player && player.isBot) {
+        // Just apply the effect without visuals
         if (runner) {
           runner.classList.add('slowed');
-          // FIXED: Check if kanjiEffects exists before calling
-          if (typeof kanjiEffects !== 'undefined') {
-            kanjiEffects.showKanji('slow', playerId);
-          }
           setTimeout(() => runner.classList.remove('slowed'), 1500);
         }
-        break;
-    }
-  },
+        return;
+      }
+      
+      // Only show kanji for local player
+      const isLocalPlayer = player && player.socketId === socket.id;
+      
+      if (runner) {
+        runner.classList.add('slowed');
+        
+        // Only show kanji for local player
+        if (isLocalPlayer && typeof kanjiEffects !== 'undefined') {
+          kanjiEffects.showKanji('slow', playerId);
+        }
+        
+        setTimeout(() => runner.classList.remove('slowed'), 1500);
+      }
+      break;
+  }
+},
 
-  showSpeedZoneEffect: function(runner) {
-    const effect = document.createElement('div');
-    effect.textContent = 'WASABI BOOST!';
-    effect.style.cssText = `
-      position: absolute;
-      top: -25px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: #00FF88;
-      font-weight: bold;
-      font-size: 10px;
-      animation: speedBoostText 1s ease-out forwards;
-      z-index: 100;
-    `;
-    
-    runner.appendChild(effect);
-    setTimeout(() => effect.remove(), 1000);
-    
-    // FIXED: Get playerId properly AND check if kanjiEffects exists
-    const playerId = runner.id.replace('runner', '');
-    if (playerId && typeof kanjiEffects !== 'undefined') {
-      kanjiEffects.showKanji('boost', playerId);
-    }
-  },
+showSpeedZoneEffect: function(runner) {
+  // Check if this is the local player's runner
+  const playerId = runner.id.replace('runner', '');
+  const player = gameState.players[playerId];
+  
+  // Don't show for bots
+  if (player && player.isBot) return;
+  
+  // Only show for local player
+  const isLocalPlayer = player && player.socketId === socket.id;
+  if (!isLocalPlayer) return;
+  
+  const effect = document.createElement('div');
+  effect.textContent = 'WASABI BOOST!';
+  effect.style.cssText = `
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #00FF88;
+    font-weight: bold;
+    font-size: 10px;
+    animation: speedBoostText 1s ease-out forwards;
+    z-index: 100;
+  `;
+  
+  runner.appendChild(effect);
+  setTimeout(() => effect.remove(), 1000);
+  
+  if (playerId && typeof kanjiEffects !== 'undefined') {
+    kanjiEffects.showKanji('boost', playerId);
+  }
+},
 
   clearElements: function() {
     document.querySelectorAll('.track-obstacle, .speed-zone, .power-up').forEach(el => el.remove());
@@ -2620,10 +2708,20 @@ function startRunnerAnimation(playerId) {
   runner.classList.add('running');
   playerStates[playerId].isRunning = true;
 
+  // ENSURE SPRITE STAYS VISIBLE
+  var character = gameGraphics.characters[playerId];
+  if (character && character.loaded && character.frames.length > 0 && !runner.dataset.frames) {
+    runner.dataset.frames = JSON.stringify(character.frames);
+    runner.dataset.currentFrame = '0';
+    runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
+    runner.style.backgroundSize = 'cover';
+    runner.style.backgroundRepeat = 'no-repeat';
+  }
+
   if (runner.dataset.frames && !playerStates[playerId].animationInterval) {
     playerStates[playerId].animationInterval = setInterval(function () {
       if (playerStates[playerId] && playerStates[playerId].isRunning) gameGraphics.animateSprite(playerId);
-    }, 80); // ~12.5 fps
+    }, 80);
   }
 }
 
