@@ -194,6 +194,8 @@
   transform: translateY(2px);
 }
 
+
+
 /* Add these new animations to your existing CSS */
 @keyframes powerUpFloat {
   0%, 100% { transform: translateY(0px); }
@@ -285,6 +287,136 @@
     -2px 2px 0 #000;
   pointer-events: none;
   white-space: nowrap;
+}
+
+/* Simultaneous Press Warning Styles */
+.defense-warning {
+  animation: warningPulse 0.3s ease-in-out infinite;
+}
+
+@keyframes warningPulse {
+  0%, 100% { 
+    transform: translateX(-50%) scale(1);
+    border-color: #FF3366;
+  }
+  50% { 
+    transform: translateX(-50%) scale(1.05);
+    border-color: #FF6699;
+  }
+}
+
+.warning-icon {
+  font-size: 3rem;
+  margin-bottom: 10px;
+  animation: warningBounce 0.5s ease-in-out infinite;
+}
+
+@keyframes warningBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.warning-text {
+  color: #FF3366;
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 0 #000;
+  letter-spacing: 2px;
+}
+
+.warning-hands {
+  font-size: 2rem;
+  margin-bottom: 15px;
+  animation: handsPress 0.6s ease-in-out infinite;
+}
+
+@keyframes handsPress {
+  0%, 100% { 
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% { 
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+}
+
+.warning-timer {
+  width: 200px;
+  height: 10px;
+  background: #333;
+  border: 2px solid #666;
+  border-radius: 5px;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+@keyframes timerDrain {
+  0% { width: 100%; }
+  100% { width: 0%; }
+}
+
+/* Block Feedback */
+@keyframes blockFeedbackPop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.5);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.2);
+  }
+  50% {
+    transform: translateX(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-30px) scale(0.8);
+  }
+}
+
+/* Perfect block shine effect */
+.block-feedback {
+  white-space: nowrap;
+}
+
+@keyframes perfectShine {
+  0%, 100% {
+    text-shadow: 
+      3px 3px 0 #000,
+      -3px -3px 0 #000,
+      3px -3px 0 #000,
+      -3px 3px 0 #000,
+      0 0 20px currentColor;
+  }
+  50% {
+    text-shadow: 
+      3px 3px 0 #000,
+      -3px -3px 0 #000,
+      3px -3px 0 #000,
+      -3px 3px 0 #000,
+      0 0 40px currentColor,
+      0 0 60px currentColor;
+  }
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .warning-text {
+    font-size: 1rem;
+  }
+  
+  .warning-hands {
+    font-size: 1.5rem;
+  }
+  
+  .warning-timer {
+    width: 150px;
+  }
+  
+  .block-feedback {
+    font-size: 1.5rem !important;
+  }
 }
 
 @keyframes powerUpTextFloat {

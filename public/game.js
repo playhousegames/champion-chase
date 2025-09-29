@@ -105,6 +105,371 @@ var kanjiEffects = {
   }
 };
 
+// SIMULTANEOUS PRESS DEFENSE SYSTEM
+// Replace the defense system with this version
+
+var defenseSystem = {
+  activeAttacks: {},
+  blockWindows: {},
+  pressStates: {}, // Track which buttons are currently pressed
+  
+  initiateAttack: function(targetPlayerId, attackType, duration) {
+    console.log(`Attack ${attackType} incoming for player ${targetPlayerId}`);
+    
+    this.showAttackWarning(targetPlayerId, attackType);
+    
+    const blockWindowStart = Date.now() + 800;
+    const blockWindowEnd = blockWindowStart + 500;
+    
+    this.blockWindows[targetPlayerId] = {
+      start: blockWindowStart,
+      end: blockWindowEnd,
+      attackType: attackType,
+      duration: duration,
+      blocked: false
+    };
+    
+    setTimeout(() => {
+      if (this.blockWindows[targetPlayerId] && !this.blockWindows[targetPlayerId].blocked) {
+        console.log(`Player ${targetPlayerId} failed to block!`);
+        this.applyAttackEffect(targetPlayerId, attackType, duration);
+        delete this.blockWindows[targetPlayerId];
+      }
+    }, 1300);
+  },
+  
+  // Track button press state
+  registerPress: function(playerId, side) {
+    if (!this.pressStates[playerId]) {
+      this.pressStates[playerId] = { L: false, R: false, pressTime: {} };
+    }
+    
+    const now = Date.now();
+    this.pressStates[playerId][side] = true;
+    this.pressStates[playerId].pressTime[side] = now;
+    
+    // Check if both are pressed within 100ms window
+    this.checkSimultaneousPress(playerId, now);
+  },
+  
+  registerRelease: function(playerId, side) {
+    if (this.pressStates[playerId]) {
+      this.pressStates[playerId][side] = false;
+    }
+  },
+  
+  checkSimultaneousPress: function(playerId, now) {
+    const state = this.pressStates[playerId];
+    if (!state) return;
+    
+    // Both buttons pressed?
+    if (state.L && state.R) {
+      const lTime = state.pressTime.L || 0;
+      const rTime = state.pressTime.R || 0;
+      const timeDiff = Math.abs(lTime - rTime);
+      
+      // Must press within 100ms of each other
+      if (timeDiff <= 100) {
+        this.attemptBlock(playerId, timeDiff);
+      }
+    }
+  },
+  
+  attemptBlock: function(playerId, timeDiff) {
+    const window = this.blockWindows[playerId];
+    if (!window) {
+      // No attack to block - wasted the simultaneous press
+      this.showBlockFeedback(playerId, 'NO THREAT', '#666');
+      return false;
+    }
+    
+    const now = Date.now();
+    
+    // Check if within block window
+    if (now >= window.start && now <= window.end) {
+      const timing = now - window.start;
+      const windowSize = window.end - window.start;
+      const perfection = 1 - (timing / windowSize);
+      
+      // Also factor in how simultaneous the press was (0-100ms)
+      const simultaneity = 1 - (timeDiff / 100);
+      const totalScore = (perfection * 0.6) + (simultaneity * 0.4);
+      
+      window.blocked = true;
+      
+      if (totalScore > 0.8) {
+        // PERFECT - both timing AND simultaneity
+        this.showBlockFeedback(playerId, 'PERFECT!', '#FFD700');
+        this.counterAttack(playerId, 7); // 7 taps
+        if (sounds.initialized) this.playBlockSound('perfect');
+      } else if (totalScore > 0.5) {
+        // GOOD - decent block
+        this.showBlockFeedback(playerId, 'BLOCKED!', '#00FF88');
+        this.counterAttack(playerId, 3); // 3 taps
+        if (sounds.initialized) this.playBlockSound('good');
+      } else {
+        // WEAK - barely blocked
+        this.showBlockFeedback(playerId, 'WEAK BLOCK', '#88FF88');
+        if (sounds.initialized) this.playBlockSound('weak');
+      }
+      
+      delete this.blockWindows[playerId];
+      return true;
+      
+    } else if (now < window.start) {
+      this.showBlockFeedback(playerId, 'TOO EARLY', '#FF4444');
+      return false;
+    } else {
+      this.showBlockFeedback(playerId, 'TOO LATE', '#FF4444');
+      this.applyAttackEffect(playerId, window.attackType, window.duration);
+      delete this.blockWindows[playerId];
+      return false;
+    }
+  },
+  
+  showAttackWarning: function(playerId, attackType) {
+    const warning = document.createElement('div');
+    warning.className = 'defense-warning';
+    warning.innerHTML = `
+      <div class="warning-icon">⚠️</div>
+      <div class="warning-text">PRESS BOTH!</div>
+      <div class="warning-hands">👈 👉</div>
+      <div class="warning-timer">
+        <div class="timer-bar"></div>
+      </div>
+    `;
+    warning.style.cssText = `
+      position: fixed;
+      top: 40%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.95);
+      border: 4px solid #FF3366;
+      padding: 20px;
+      border-radius: 10px;
+      z-index: 9998;
+      text-align: center;
+      font-family: 'Press Start 2P', monospace;
+      animation: warningPulse 0.3s ease-in-out infinite;
+      box-shadow: 0 0 30px rgba(255, 51, 102, 0.6);
+    `;
+    
+    document.body.appendChild(warning);
+    
+    const timerBar = warning.querySelector('.timer-bar');
+    if (timerBar) {
+      timerBar.style.cssText = `
+        width: 100%;
+        height: 8px;
+        background: linear-gradient(90deg, #00FF88, #FFD700, #FF3366);
+        animation: timerDrain 1.3s linear forwards;
+      `;
+    }
+    
+    setTimeout(() => warning.remove(), 1300);
+  },
+  
+  showBlockFeedback: function(playerId, text, color) {
+    const feedback = document.createElement('div');
+    feedback.className = 'block-feedback';
+    feedback.textContent = text;
+    feedback.style.cssText = `
+      position: fixed;
+      top: 35%;
+      left: 50%;
+      transform: translateX(-50%);
+      color: ${color};
+      font-size: 2rem;
+      font-family: 'Press Start 2P', monospace;
+      text-shadow: 3px 3px 0 #000;
+      z-index: 9999;
+      animation: blockFeedbackPop 1s ease-out forwards;
+      pointer-events: none;
+    `;
+    
+    document.body.appendChild(feedback);
+    setTimeout(() => feedback.remove(), 1000);
+  },
+  
+  applyAttackEffect: function(playerId, attackType, duration) {
+    const runner = document.getElementById('runner' + playerId);
+    if (runner) {
+      runner.classList.add('slowed');
+      if (!playerStates[playerId]) playerStates[playerId] = {};
+      playerStates[playerId].tapsBlocked = true;
+    }
+    
+    setTimeout(() => {
+      if (runner) runner.classList.remove('slowed');
+      if (playerStates[playerId]) playerStates[playerId].tapsBlocked = false;
+    }, duration);
+  },
+  
+  counterAttack: function(playerId, tapCount) {
+    for (let i = 0; i < tapCount; i++) {
+      setTimeout(() => {
+        socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
+      }, i * 50);
+    }
+    
+    if (typeof kanjiEffects !== 'undefined') {
+      kanjiEffects.showKanji('power', playerId);
+    }
+  },
+
+    playBlockSound: function(type) {
+    if (!audioCtx) return;
+    
+    try {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      if (type === 'perfect') {
+        oscillator.frequency.setValueAtTime(1400, audioCtx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(2000, audioCtx.currentTime + 0.15);
+      } else if (type === 'good') {
+        oscillator.frequency.setValueAtTime(900, audioCtx.currentTime);
+      } else {
+        oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+      }
+      
+      oscillator.type = 'square';
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+      
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + 0.2);
+    } catch(e) {}
+  }
+};
+
+// UPDATED tapPress function - registers presses with defense system
+function tapPress(e, playerId, btn) {
+  e.preventDefault(); 
+  e.stopPropagation();
+  
+  if (gameState.countdownActive) {
+    console.log('Tapping blocked - countdown in progress');
+    return;
+  }
+  
+  // Check if taps blocked by attack
+  if (playerStates[playerId] && playerStates[playerId].tapsBlocked) {
+    console.log('Taps blocked by SOY_TRAP!');
+    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+    return;
+  }
+  
+  if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) return;
+
+  btn.classList.add('pressed');
+
+  // Register press with defense system
+  const side = btn.getAttribute('data-side');
+  if (side && typeof defenseSystem !== 'undefined') {
+    defenseSystem.registerPress(playerId, side);
+  }
+
+  if (!playerStates[playerId]) playerStates[playerId] = {};
+  playerStates[playerId].lastTap = Date.now();
+
+  // Normal movement
+  var currentPos = gameState.positions[playerId] || 20;
+  var predictedMovement = 8;
+  var newPosition = currentPos + predictedMovement;
+  
+  gameState.positions[playerId] = newPosition;
+  var runner = document.getElementById('runner' + playerId);
+  if (runner) {
+    runner.style.left = newPosition + 'px';
+  }
+
+  startRunnerAnimation(playerId);
+  socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
+
+  spawnDust(playerId);
+  if (sounds.initialized) sounds.playTap();
+  if (navigator.vibrate) navigator.vibrate(10);
+}
+
+// UPDATED tapRelease function - registers releases
+function tapRelease(e, playerId, btn) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const targetBtn = btn || (e.target.closest ? e.target.closest('.touch-btn') : null);
+  if (targetBtn) {
+    targetBtn.classList.remove('pressed');
+    targetBtn.classList.remove('active');
+    
+    // Register release with defense system
+    const side = targetBtn.getAttribute('data-side');
+    if (side && typeof defenseSystem !== 'undefined') {
+      defenseSystem.registerRelease(playerId, side);
+    }
+  }
+
+  const runner = document.getElementById('runner' + playerId);
+  if (!runner) return;
+
+  clearTimeout(runner._stopTimer);
+  runner._stopTimer = setTimeout(() => {
+    stopRunnerAnimation(playerId);
+  }, 200);
+}
+
+// Mobile controls stay the same - just L and R buttons (no center button needed)
+function setupMobileControls() {
+  var controlLayout = document.getElementById('controlLayout');
+  if (!controlLayout) return;
+
+  controlLayout.innerHTML = '';
+
+  var myPlayers = [];
+  for (var k in gameState.players) {
+    var p = gameState.players[k];
+    if (p && p.socketId === socket.id) myPlayers.push(p);
+  }
+  if (myPlayers.length === 0) return;
+
+  myPlayers.forEach(function(player){
+    var wrapper = document.createElement('div');
+    wrapper.className = 'player-touch-controls player' + player.id + ' dual';
+    wrapper.style.marginBottom = "20px";
+
+    wrapper.innerHTML = `
+      <div class="control-player-label" style="margin-bottom:10px;">
+        ${(player.name || ('Runner ' + player.id)).toUpperCase()}
+      </div>
+      <div class="dual-buttons">
+        <button class="touch-btn" data-player="${player.id}" data-side="L">L</button>
+        <button class="touch-btn" data-player="${player.id}" data-side="R">R</button>
+      </div>`;
+    controlLayout.appendChild(wrapper);
+  });
+
+  var btns = controlLayout.querySelectorAll('.touch-btn');
+  btns.forEach(function(btn){
+    if (btn._bound) return;
+
+    var pid = parseInt(btn.getAttribute('data-player'), 10);
+    var press = function(e){ tapPress(e, pid, btn); };
+    var release = function(e){ tapRelease(e, pid, btn); };
+
+    btn.addEventListener('touchstart', press, { passive:false });
+    btn.addEventListener('touchend', release, { passive:false });
+    btn.addEventListener('mousedown', press);
+    btn.addEventListener('mouseup', release);
+
+    btn._bound = true;
+  });
+}
+
+
+
 /* =========================================================
    ENHANCED SUSHI SPRINT - Dynamic Elements & Power-ups
    New Features:
@@ -118,6 +483,7 @@ var kanjiEffects = {
 ------------------------------ */
 // IMPROVED POWER-UP SYSTEM - Replace your existing powerUpSystem object
 
+// REBALANCED POWER-UPS in your powerUpSystem object
 var powerUpSystem = {
   types: {
     WASABI_RUSH: { 
@@ -136,9 +502,9 @@ var powerUpSystem = {
       duration: 2000,
       effect: 'slowOpponents'
     },
-    TELEPORT_ROLL: { 
-      id: 'teleport', 
-      name: 'TELEPORT!', 
+    DASH_ROLL: {  // Renamed from TELEPORT_ROLL
+      id: 'dash', 
+      name: 'DASH!', 
       color: '#FF00FF', 
       icon: '⚡',
       duration: 500,
@@ -264,6 +630,11 @@ var powerUpSystem = {
         break;
     }
 
+     // Crowd reacts to power-up
+  if (typeof crowdSystem !== 'undefined') {
+    crowdSystem.onPowerUp(playerId);
+  }
+
     // Remove power-up after duration
     setTimeout(() => {
       delete this.activePowerUps[playerId];
@@ -307,39 +678,37 @@ var powerUpSystem = {
     }, 250); // One tap every 250ms for 4 seconds = ~15 taps
   },
 
-  slowOpponents: function(playerId) {
-    // Actually block opponent taps for 2 seconds
-    Object.keys(gameState.players).forEach(pid => {
-      if (pid != playerId) {
+slowOpponents: function(playerId) {
+  // Use defense system to give opponents a chance to block
+  Object.keys(gameState.players).forEach(pid => {
+    if (pid != playerId) {
+      if (typeof defenseSystem !== 'undefined') {
+        defenseSystem.initiateAttack(pid, 'soy_trap', 2000);
+      } else {
+        // Fallback if defense system not loaded
         const runner = document.getElementById('runner' + pid);
         if (runner) {
           runner.classList.add('slowed');
-          
-          // Store original tap function and replace with blocked version
           if (!playerStates[pid]) playerStates[pid] = {};
           playerStates[pid].tapsBlocked = true;
         }
-      }
-    });
-    
-    setTimeout(() => {
-      Object.keys(gameState.players).forEach(pid => {
-        if (pid != playerId) {
-          const runner = document.getElementById('runner' + pid);
+        
+        setTimeout(() => {
           if (runner) runner.classList.remove('slowed');
           if (playerStates[pid]) playerStates[pid].tapsBlocked = false;
-        }
-      });
-    }, 2000);
-  },
-
-  instantForward: function(playerId) {
-    // Big jump forward with 10 rapid taps
-    for (let i = 0; i < 10; i++) {
-      setTimeout(() => {
-        socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
-      }, i * 40);
+        }, 2000);
+      }
     }
+  });
+},
+
+ instantForward: function(playerId) {
+  // Reduced from 10 to 5 taps, still powerful but not game-breaking
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
+    }, i * 50);
+  }
     
     // Visual effect
     if (typeof kanjiEffects !== 'undefined') {
@@ -354,28 +723,51 @@ var powerUpSystem = {
     }
   },
 
-  showPowerUpEffect: function(playerId, type) {
-    // Create FIXED position text that floats above everything
-    const effect = document.createElement('div');
-    effect.className = 'power-up-text';
-    effect.textContent = type.name;
-    effect.style.color = type.color;
-    
-    // Add to body, not runner, so it's not affected by track transforms
-    document.body.appendChild(effect);
-    setTimeout(() => effect.remove(), 2000);
+showPowerUpEffect: function(playerId, type) {
+  // Create FIXED position text that floats above everything
+  const effect = document.createElement('div');
+  effect.className = 'power-up-text';
+  effect.textContent = type.name;
+  
+  // Better styling with readable colors and stronger shadow
+  effect.style.cssText = `
+    position: fixed !important;
+    top: 30% !important;
+    left: 50% !important;
+    transform: translateX(-50%) translateY(-50%) !important;
+    color: #FFFFFF !important;
+    font-weight: bold;
+    font-size: 20px;
+    animation: powerUpTextFloat 2s ease-out forwards;
+    z-index: 9999 !important;
+    text-shadow: 
+      3px 3px 0 #000,
+      -3px -3px 0 #000,
+      3px -3px 0 #000,
+      -3px 3px 0 #000,
+      0 0 10px ${type.color},
+      0 0 20px ${type.color};
+    pointer-events: none;
+    white-space: nowrap;
+    font-family: 'Press Start 2P', monospace;
+    letter-spacing: 1px;
+  `;
+  
+  // Add to body, not runner, so it's not affected by track transforms
+  document.body.appendChild(effect);
+  setTimeout(() => effect.remove(), 2000);
 
-    // Add kanji effects
-    if (type.effect === 'speedBoost' || type.effect === 'megaBoost') {
-      if (typeof kanjiEffects !== 'undefined') {
-        kanjiEffects.showKanji('speed', playerId);
-      }
-    } else if (type.effect === 'instantForward') {
-      if (typeof kanjiEffects !== 'undefined') {
-        kanjiEffects.showKanji('power', playerId);
-      }
+  // Add kanji effects
+  if (type.effect === 'speedBoost' || type.effect === 'megaBoost') {
+    if (typeof kanjiEffects !== 'undefined') {
+      kanjiEffects.showKanji('speed', playerId);
     }
-  },
+  } else if (type.effect === 'instantForward') {
+    if (typeof kanjiEffects !== 'undefined') {
+      kanjiEffects.showKanji('power', playerId);
+    }
+  }
+},
 
   createCollectionParticles: function(rect) {
     // Create burst particles at collection point
@@ -907,43 +1299,136 @@ function launchTickerTape() {
 }
 
 /* ------------------------------
-   4) WEB AUDIO SYSTEM
------------------------------- */
+/* =========================================================
+   SOUND SYSTEM FIX - Key Changes:
+   1. Better Web Audio initialization with mobile handling
+   2. Robust fallback to HTML5 Audio
+   3. Proper error handling and logging
+   4. User interaction detection for autoplay restrictions
+   ========================================================= */
+
+// ---- WEB AUDIO SYSTEM (IMPROVED) ----
 let audioCtx;
 let tapBuffer = null;
+let audioInitialized = false;
 
 async function initWebAudio() {
+  if (audioInitialized) return;
+  
   try {
+    console.log("Initializing Web Audio...");
+    
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      console.log("AudioContext created, state:", audioCtx.state);
     }
+    
+    // Resume if suspended (critical for mobile)
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+      console.log("AudioContext resumed, new state:", audioCtx.state);
+    }
+    
     if (!tapBuffer) {
+      console.log("Loading tap sound buffer...");
       const response = await fetch("sounds/button_press.wav");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tap sound: ${response.status}`);
+      }
       const arrayBuffer = await response.arrayBuffer();
       tapBuffer = await audioCtx.decodeAudioData(arrayBuffer);
       console.log("Tap sound loaded successfully");
     }
+    
+    audioInitialized = true;
+    console.log("Web Audio fully initialized");
   } catch (error) {
-    console.warn("Web Audio initialization failed:", error);
-    // Fall back to HTML audio only
+    console.error("Web Audio initialization failed:", error);
+    audioInitialized = false;
   }
 }
 
 function playTapWeb() {
-  if (!tapBuffer || !audioCtx) return;
+  if (!tapBuffer || !audioCtx) {
+    console.warn("Web Audio not ready");
+    return;
+  }
+  
   try {
-    const source = audioCtx.createBufferSource();
-    source.buffer = tapBuffer;
-    source.connect(audioCtx.destination);
-    source.start(0);
+    // Resume context if needed (mobile browsers suspend it)
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => {
+        playTapWebInternal();
+      });
+    } else {
+      playTapWebInternal();
+    }
   } catch (error) {
-    console.warn("Web Audio playback failed:", error);
+    console.error("Web Audio playback failed:", error);
   }
 }
 
-/* ------------------------------
-   5) SOUND SYSTEM (HTML AUDIO FALLBACK)
------------------------------- */
+function playTapWebInternal() {
+  try {
+    const source = audioCtx.createBufferSource();
+    const gainNode = audioCtx.createGain();
+    
+    source.buffer = tapBuffer;
+    source.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    gainNode.gain.value = 0.8;
+    
+    source.start(0);
+  } catch (error) {
+    console.error("playTapWebInternal error:", error);
+  }
+}
+
+function playStartSound() {
+  if (!audioCtx) {
+    console.warn("AudioContext not available for start sound");
+    return;
+  }
+  
+  try {
+    // Resume if suspended
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    
+    const oscillator1 = audioCtx.createOscillator();
+    const oscillator2 = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator1.connect(gainNode);
+    oscillator2.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator1.type = 'square';
+    oscillator2.type = 'sawtooth';
+    
+    oscillator1.frequency.setValueAtTime(600, audioCtx.currentTime);
+    oscillator1.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.3);
+    
+    oscillator2.frequency.setValueAtTime(800, audioCtx.currentTime);
+    oscillator2.frequency.exponentialRampToValueAtTime(1600, audioCtx.currentTime + 0.3);
+    
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.05);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+    
+    oscillator1.start(audioCtx.currentTime);
+    oscillator2.start(audioCtx.currentTime);
+    oscillator1.stop(audioCtx.currentTime + 0.5);
+    oscillator2.stop(audioCtx.currentTime + 0.5);
+    
+    console.log("Start sound played");
+  } catch(e) {
+    console.error("Start sound failed:", e);
+  }
+}
+
+// ---- HTML5 AUDIO FALLBACK (IMPROVED) ----
 var sounds = {
   initialized: false,
   sfx: {},
@@ -964,9 +1449,13 @@ function pickFormat(baseName) {
 }
 
 function initSounds() {
-  if (sounds.initialized) return;
+  if (sounds.initialized) {
+    console.log("Sounds already initialized");
+    return;
+  }
 
-  // preload audio assets
+  console.log("Initializing HTML5 Audio sounds...");
+
   var files = {
     countdown: "sounds/countdown.wav",
     go:        "sounds/go.wav",
@@ -976,59 +1465,357 @@ function initSounds() {
   };
 
   Object.keys(files).forEach(function(k){
-    var a = new Audio(files[k]);
-    a.preload = 'auto';
+    try {
+      var a = new Audio(files[k]);
+      a.preload = 'auto';
+      
+      // Add load event listener
+      a.addEventListener('canplaythrough', function() {
+        console.log(`Sound ${k} loaded successfully`);
+      });
+      
+      a.addEventListener('error', function(e) {
+        console.error(`Error loading sound ${k}:`, e);
+      });
 
-    if (k === "victory") {
-      a.volume = 0.7;  // make the jingle pop
+      if (k === "victory") {
+        a.volume = 0.7;
+      }
+
+      sounds.sfx[k] = a;
+    } catch (error) {
+      console.error(`Failed to create audio for ${k}:`, error);
     }
-
-    sounds.sfx[k] = a;
   });
 
-  // === SFX PLAYERS ===
+  // Sound player functions with better error handling
   sounds.playCountdown = function(){ 
-    try { sounds.sfx.countdown.currentTime = 0; sounds.sfx.countdown.play(); } catch(e){} 
+    try { 
+      if (sounds.sfx.countdown) {
+        sounds.sfx.countdown.currentTime = 0;
+        sounds.sfx.countdown.volume = 0.6;
+        const promise = sounds.sfx.countdown.play();
+        if (promise) {
+          promise.catch(err => console.warn('Countdown sound failed:', err));
+        }
+        console.log("Countdown sound played");
+      } else {
+        console.warn("Countdown sound not loaded");
+      }
+    } catch(e){ 
+      console.error('Countdown sound error:', e);
+    } 
   };
 
   sounds.playGo = function(){ 
-    try { sounds.sfx.go.currentTime = 0; sounds.sfx.go.play(); } catch(e){} 
+    try { 
+      if (sounds.sfx.go) {
+        sounds.sfx.go.currentTime = 0;
+        sounds.sfx.go.volume = 0.7;
+        const promise = sounds.sfx.go.play();
+        if (promise) {
+          promise.catch(err => console.warn('Go sound failed:', err));
+        }
+        console.log("Go sound played");
+      } else {
+        console.warn("Go sound not loaded");
+      }
+    } catch(e){
+      console.error('Go sound error:', e);
+    } 
   };
 
   sounds.playTap = function() {
-    if (tapBuffer && audioCtx) {
-      playTapWeb();   // use Web Audio (instant)
+    // Try Web Audio first (lower latency)
+    if (audioInitialized && tapBuffer && audioCtx) {
+      playTapWeb();
     } else if (sounds.sfx.tap) {
-      // fallback: normal audio if Web Audio not ready
+      // Fallback to HTML5 Audio
       try {
         const clone = sounds.sfx.tap.cloneNode();
         clone.volume = 0.8;
-        clone.play().catch(()=>{});
+        const promise = clone.play();
+        if (promise) {
+          promise.catch(err => console.warn('Tap sound failed:', err));
+        }
       } catch(e) {
-        console.warn("Tap sound error:", e);
+        console.error("Tap sound error:", e);
       }
+    } else {
+      console.warn("No tap sound available");
     }
   };
 
   sounds.playFinish = function() {
-    if (!sounds.sfx.finish) return;
+    if (!sounds.sfx.finish) {
+      console.warn("Finish sound not loaded");
+      return;
+    }
     try {
       sounds.sfx.finish.currentTime = 0;
-      var p = sounds.sfx.finish.play();
-      if (p && p.catch) p.catch(err => console.warn('Finish sound failed:', err));
-    } catch (e) { console.warn('Finish sound error:', e); }
+      const promise = sounds.sfx.finish.play();
+      if (promise) {
+        promise.catch(err => console.warn('Finish sound failed:', err));
+      }
+      console.log("Finish sound played");
+    } catch (e) { 
+      console.error('Finish sound error:', e); 
+    }
   };
 
   sounds.playVictory = function() {
-    if (!sounds.sfx.victory) return;
+    if (!sounds.sfx.victory) {
+      console.warn("Victory sound not loaded");
+      return;
+    }
     try {
       sounds.sfx.victory.currentTime = 0;
-      sounds.sfx.victory.play();
-    } catch (e) { console.warn("Victory sound error:", e); }
+      const promise = sounds.sfx.victory.play();
+      if (promise) {
+        promise.catch(err => console.warn('Victory sound failed:', err));
+      }
+      console.log("Victory sound played");
+    } catch (e) { 
+      console.error("Victory sound error:", e); 
+    }
   };
 
   sounds.initialized = true;
+  console.log("HTML5 Audio sounds initialized");
 }
+
+// ---- INITIALIZATION (CRITICAL FOR MOBILE) ----
+function setupAudioOnInteraction() {
+  console.log("Setting up audio initialization on user interaction...");
+  
+  function initAllAudio() {
+    console.log("User interaction detected - initializing audio...");
+    initSounds();
+    initWebAudio();
+  }
+  
+  // Listen for various user interactions
+  document.addEventListener('click', initAllAudio, { once: true });
+  document.addEventListener('touchstart', initAllAudio, { once: true });
+  document.addEventListener('touchend', initAllAudio, { once: true });
+  
+  // Also try on button clicks
+  const joinBtn = document.getElementById('joinRoomBtn');
+  if (joinBtn) {
+    joinBtn.addEventListener('click', initAllAudio, { once: true });
+  }
+}
+
+// Call this early
+setupAudioOnInteraction();
+
+
+/* =========================================================
+   CROWD ATMOSPHERE SYSTEM
+   Features:
+   - Ambient crowd murmur (continuous background)
+   - Reactive cheering (responds to race events)
+   - Position-based excitement (louder when close finishes)
+   - Victory roar (massive cheer for winner)
+   - Individual cheers for overtakes and power-ups
+   ========================================================= */
+
+var crowdSystem = {
+  ambientSound: null,
+  cheerSounds: [],
+  isInitialized: false,
+  currentExcitementLevel: 0,
+  
+  // Initialize crowd audio system
+  init: function() {
+    if (this.isInitialized) return;
+    
+    console.log("Initializing crowd atmosphere system...");
+    
+    // Create ambient crowd murmur (looping background)
+    this.ambientSound = new Audio("sounds/crowd_ambient.mp3");
+    this.ambientSound.loop = true;
+    this.ambientSound.volume = 0;
+    this.ambientSound.preload = 'auto';
+    
+    // Create multiple cheer sounds for variety
+    const cheerFiles = [
+      "sounds/crowd_cheer_1.mp3",
+      "sounds/crowd_cheer_2.mp3", 
+      "sounds/crowd_cheer_3.mp3"
+    ];
+    
+    cheerFiles.forEach(file => {
+      const audio = new Audio(file);
+      audio.preload = 'auto';
+      audio.volume = 0.6;
+      this.cheerSounds.push(audio);
+    });
+    
+    this.isInitialized = true;
+    console.log("Crowd system initialized");
+  },
+  
+  // Start ambient crowd noise when race begins
+  startAmbience: function() {
+    if (!this.isInitialized) this.init();
+    
+    try {
+      // Fade in ambient crowd
+      this.ambientSound.volume = 0;
+      this.ambientSound.play().then(() => {
+        this.fadeVolume(this.ambientSound, 0.25, 2000);
+        console.log("Crowd ambience started");
+      }).catch(err => {
+        console.warn("Crowd ambience failed to start:", err);
+      });
+    } catch(e) {
+      console.error("Crowd ambience error:", e);
+    }
+  },
+  
+  // Stop ambient noise when race ends
+  stopAmbience: function(fadeTime = 1000) {
+    if (!this.ambientSound) return;
+    
+    this.fadeVolume(this.ambientSound, 0, fadeTime, () => {
+      this.ambientSound.pause();
+    });
+  },
+  
+  // Fade audio volume smoothly
+  fadeVolume: function(audio, targetVolume, duration, callback) {
+    if (!audio) return;
+    
+    const startVolume = audio.volume;
+    const volumeDiff = targetVolume - startVolume;
+    const steps = 20;
+    const stepTime = duration / steps;
+    let currentStep = 0;
+    
+    const interval = setInterval(() => {
+      currentStep++;
+      const progress = currentStep / steps;
+      audio.volume = Math.max(0, Math.min(1, startVolume + (volumeDiff * progress)));
+      
+      if (currentStep >= steps) {
+        clearInterval(interval);
+        if (callback) callback();
+      }
+    }, stepTime);
+  },
+  
+  // Play a random cheer sound
+  playCheer: function(volume = 0.6) {
+    if (!this.isInitialized || this.cheerSounds.length === 0) return;
+    
+    try {
+      // Pick random cheer
+      const cheer = this.cheerSounds[Math.floor(Math.random() * this.cheerSounds.length)];
+      const clone = cheer.cloneNode();
+      clone.volume = volume;
+      
+      clone.play().catch(err => {
+        console.warn("Cheer sound failed:", err);
+      });
+      
+      console.log("Crowd cheer played at volume:", volume);
+    } catch(e) {
+      console.error("Cheer error:", e);
+    }
+  },
+  
+  // React to race start
+  onRaceStart: function() {
+    this.startAmbience();
+    setTimeout(() => {
+      this.playCheer(0.7);
+    }, 1000); // Cheer after countdown
+  },
+  
+  // React to player overtake
+  onOvertake: function(playerId) {
+    this.playCheer(0.5);
+    this.raiseExcitement(10);
+  },
+  
+  // React to power-up collection
+  onPowerUp: function(playerId) {
+    this.playCheer(0.4);
+  },
+  
+  // React to race finish (excitement based on how close)
+  onPlayerFinish: function(playerId, position, timeDifference) {
+    const baseVolume = 0.8;
+    
+    if (position === 1) {
+      // Winner gets huge cheer
+      this.playVictoryRoar();
+    } else if (timeDifference < 1.0) {
+      // Close finish = loud cheer
+      this.playCheer(baseVolume);
+    } else if (timeDifference < 3.0) {
+      // Normal finish
+      this.playCheer(baseVolume * 0.7);
+    } else {
+      // Distant finish = quieter
+      this.playCheer(baseVolume * 0.4);
+    }
+  },
+  
+  // Massive roar for winner
+  playVictoryRoar: function() {
+    console.log("Victory roar!");
+    
+    // Increase ambient crowd volume
+    this.fadeVolume(this.ambientSound, 0.5, 500);
+    
+    // Play multiple cheers overlapping
+    setTimeout(() => this.playCheer(0.9), 0);
+    setTimeout(() => this.playCheer(0.8), 200);
+    setTimeout(() => this.playCheer(0.7), 400);
+    
+    // Fade back down
+    setTimeout(() => {
+      this.fadeVolume(this.ambientSound, 0.25, 2000);
+    }, 2000);
+  },
+  
+  // Raise excitement level (affects ambient volume)
+  raiseExcitement: function(amount) {
+    this.currentExcitementLevel = Math.min(100, this.currentExcitementLevel + amount);
+    
+    if (this.ambientSound && !this.ambientSound.paused) {
+      const targetVolume = 0.25 + (this.currentExcitementLevel / 100) * 0.25;
+      this.fadeVolume(this.ambientSound, targetVolume, 500);
+    }
+    
+    // Decay excitement over time
+    setTimeout(() => {
+      this.currentExcitementLevel = Math.max(0, this.currentExcitementLevel - amount);
+    }, 3000);
+  },
+  
+  // React to close racing (multiple players near each other)
+  onCloseRacing: function(playerPositions) {
+    // Calculate if players are bunched up
+    const positions = Object.values(playerPositions);
+    if (positions.length < 2) return;
+    
+    const sorted = positions.sort((a, b) => b - a);
+    const leadGap = sorted[0] - sorted[1];
+    
+    if (leadGap < 50) { // Very close
+      this.raiseExcitement(5);
+    }
+  },
+  
+  // Reset for new race
+  reset: function() {
+    this.currentExcitementLevel = 0;
+    this.stopAmbience(500);
+  }
+};
 
 /* ------------------------------
    6) CAMERA / PARALLAX
@@ -1216,8 +2003,13 @@ function initGame() {
   if (eventListenersSetup) return;
   eventListenersSetup = true;
 
+    // ADD THIS near the start:
+  if (typeof crowdSystem !== 'undefined') {
+    crowdSystem.init();
+  }
+
   // Set track width (longer on desktop)
-  var raceLengthPx = isMobileDevice() ? 2500 : 4000;
+  var raceLengthPx = isMobileDevice() ? 4500 : 7000;
   var track = document.getElementById('track');
   if (track) {
     track.style.width = raceLengthPx + 'px';
@@ -1866,23 +2658,18 @@ function spawnDust(playerId) {
   setTimeout(function(){ dust.remove(); }, 420);
 }
 
-/* ------------------------------
-   15) COUNTDOWN / TIMER / GAMELOOP
------------------------------- */
+
 /* ------------------------------
    15) COUNTDOWN / TIMER / GAMELOOP (UPDATED)
 ------------------------------ */
 function startCountdown() {
   if (gameState.isResetting) return;
-
-  gameState.countdownActive = true;  // Block tapping
+  gameState.countdownActive = true;
   var count = 3;
   var countdownEl = document.getElementById('countdown');
   if (!countdownEl) return;
-
   countdownEl.style.display = 'block';
   countdownEl.textContent = String(count);
-
   var interval = setInterval(function () {
     if (gameState.isResetting) {
       clearInterval(interval);
@@ -1890,22 +2677,45 @@ function startCountdown() {
       gameState.countdownActive = false;
       return;
     }
-
     count--;
     if (count > 0) {
       countdownEl.textContent = String(count);
+      
+      // Resume audio context if suspended (mobile issue fix)
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      
       if (sounds.initialized) sounds.playCountdown();
     } else if (count === 0) {
-      countdownEl.textContent = 'GO!';
+      countdownEl.style.display = 'none';
+      
+      // Resume audio context before playing GO sound
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      
       if (sounds.initialized) sounds.playGo();
+      
       if (typeof kanjiEffects !== 'undefined') {
         kanjiEffects.showKanji('start');
       }
+      
+
+      // ADD THIS (every few frames):
+  if (Math.random() < 0.1 && typeof crowdSystem !== 'undefined') {
+    crowdSystem.onCloseRacing(gameState.positions);
+  }
+      // Crowd reacts to race start
+      if (typeof crowdSystem !== 'undefined') {
+        crowdSystem.onRaceStart();
+      }
+      
+      playStartSound();
       launchTickerTape();
     } else {
       clearInterval(interval);
-      countdownEl.style.display = 'none';
-      gameState.countdownActive = false;  // Allow tapping now
+      gameState.countdownActive = false;
       gameState.startTime = Date.now();
       startTimer();
       startGameLoop();
@@ -2049,6 +2859,12 @@ function checkFinish(playerId) {
     var finishTime = (Date.now() - gameState.startTime) / 1000;
     gameState.finishTimes[playerId] = finishTime;
 
+     if (typeof crowdSystem !== 'undefined') {
+      const finishedCount = Object.keys(gameState.finishTimes).length;
+      const timeDiff = finishTime - (Object.values(gameState.finishTimes)[0] || finishTime);
+      crowdSystem.onPlayerFinish(playerId, finishedCount, timeDiff);
+    }
+
     if (sounds.initialized) sounds.playFinish();
 
     socket.emit('checkFinish', { roomId: gameState.roomId, playerId: playerId, finishTime: finishTime });
@@ -2191,6 +3007,10 @@ function resetGame() {
     clearInterval(timerInterval);
     timerInterval = null;
   }
+
+  if (typeof crowdSystem !== 'undefined') {
+    crowdSystem.reset();
+  }
   
   // Clear all animations
   for (var id in playerStates) {
@@ -2259,7 +3079,7 @@ function isMobileDevice() {
 }
 
 window.addEventListener('resize', function () {
-  var raceLengthPx = isMobileDevice() ? 1200 : 1500;
+  var raceLengthPx = isMobileDevice() ? 4500 : 7000;
   var trackElement = document.getElementById('track');
   if (trackElement) {
     trackElement.style.width = raceLengthPx + 'px';
