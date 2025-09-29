@@ -1201,7 +1201,6 @@ socket.on('playerJoined', function (data) {
 
   setupLanes();
 
-  // Only rebuild mobile controls if *you* are one of the players
   if (Object.values(gameState.players).some(p => p.socketId === socket.id)) {
     setupMobileControls();
   }
@@ -1209,6 +1208,7 @@ socket.on('playerJoined', function (data) {
   applySlotAvailability();
 
   // Update lobby roster UI
+    // UPDATE THIS SECTION - Add bot indicators
   var playerList = document.getElementById('playerList');
   if (playerList) {
     playerList.innerHTML = '';
@@ -1217,7 +1217,13 @@ socket.on('playerJoined', function (data) {
       var div = document.createElement('div');
       div.className = 'player-entry';
 
-      // mark host visually
+      // Mark bots with special styling
+      if (player.isBot) {
+        div.classList.add('bot-player');
+        div.style.opacity = '0.85';
+        div.style.borderColor = '#888';
+      }
+
       if (data.hostSocketId && player.socketId === data.hostSocketId) {
         div.classList.add('host');
       }
@@ -1228,7 +1234,6 @@ socket.on('playerJoined', function (data) {
       avatar.style.imageRendering = 'pixelated';
       avatar.alt = player.name;
 
-      // Assign sushi avatar based on player name
       var upper = player.name.toUpperCase();
       if (upper.includes('TAMAGO')) {
         avatar.src = 'images/tamago_nigri_1.png';
@@ -1239,22 +1244,32 @@ socket.on('playerJoined', function (data) {
       } else if (upper.includes('MAGURO')) {
         avatar.src = 'images/tuna_sushi_1.png';
       } else {
-        // fallback if name doesn't match
         avatar.src = 'images/maki_roll_1.png';
       }
 
       var label = document.createElement('span');
-      label.textContent = player.name.toUpperCase();
+      // Add [BOT] indicator
+      label.textContent = player.name.toUpperCase() + (player.isBot ? ' [BOT]' : '');
 
       div.appendChild(avatar);
       div.appendChild(label);
       playerList.appendChild(div);
     });
 
-    // Update counter
+    // Update counter with bot count
     var counterEl = document.getElementById('playerCounter');
     var max = (data && typeof data.maxPlayers === 'number') ? data.maxPlayers : 4;
-    if (counterEl) counterEl.textContent = 'Players joined: ' + Object.keys(gameState.players).length + '/' + max;
+    var totalPlayers = Object.keys(gameState.players).length;
+    var botCount = Object.values(gameState.players).filter(p => p.isBot).length;
+    var realCount = totalPlayers - botCount;
+    
+    if (counterEl) {
+      if (botCount > 0) {
+        counterEl.textContent = `Players: ${realCount} + ${botCount} bot${botCount > 1 ? 's' : ''} (${totalPlayers}/${max})`;
+      } else {
+        counterEl.textContent = 'Players joined: ' + totalPlayers + '/' + max;
+      }
+    }
   }
 
   // Start button logic
@@ -1449,6 +1464,12 @@ function setupLanes() {
         var pos = (typeof gameState.positions[i] === 'number') ? gameState.positions[i] : startPos;
         runner.style.left = pos + 'px';
         runner.classList.add('active');
+        
+        // Mark bot runners
+        if (gameState.players[i].isBot) {
+          runner.classList.add('bot-runner');
+        }
+        
         gameGraphics.updateRunnerSprite(i);
 
         if (!playerStates[i]) {
@@ -1464,7 +1485,13 @@ function setupLanes() {
         playerStates[i].position = pos;
       }
       if (nameLabel) {
-        nameLabel.textContent = (gameState.players[i].name || ('Runner ' + i)).toUpperCase();
+        var playerName = (gameState.players[i].name || ('Runner ' + i)).toUpperCase();
+        // Add [BOT] to name label during race
+        if (gameState.players[i].isBot) {
+          playerName += ' [BOT]';
+          nameLabel.style.opacity = '0.8';
+        }
+        nameLabel.textContent = playerName;
         nameLabel.style.color = getPlayerColor(i);
       }
     } else {

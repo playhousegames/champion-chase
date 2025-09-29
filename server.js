@@ -20,6 +20,171 @@ app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html
 // ---- In-memory rooms ----
 const rooms = {};
 
+// ---- Bot System ----
+const BOT_NAMES = [
+  'Turbo Bot', 'Speed Bot', 'Fast Bot', 'Quick Bot',
+  'Robo Racer', 'CPU Sprinter', 'AI Runner', 'Bot Dasher'
+];
+
+const botIntervals = {}; // Store bot tap intervals
+const botFillTimers = {}; // Store timers for filling rooms with bots
+
+// Create a bot player
+function createBot(roomId, slotNum) {
+  const room = rooms[roomId];
+  if (!room || room.players[slotNum]) return null;
+
+  const botName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)] + ' ' + slotNum;
+  const botId = 'bot_' + slotNum + '_' + Date.now();
+
+  room.players[slotNum] = {
+    name: botName,
+    id: slotNum,
+    socketId: botId,
+    isBot: true
+  };
+  room.positions[slotNum] = 20;
+  room.speeds[slotNum] = 0;
+
+  console.log(`Bot ${botName} added to room ${roomId} in slot ${slotNum}`);
+  return room.players[slotNum];
+}
+
+// Fill empty slots with bots
+function fillWithBots(roomId) {
+  const room = rooms[roomId];
+  if (!room || room.gameStarted) return;
+
+  const realPlayerCount = Object.keys(room.players).filter(
+    pid => !room.players[pid].isBot
+  ).length;
+
+  // Only fill if we have at least 1 real player
+  if (realPlayerCount < 1) return;
+
+  let botsAdded = false;
+  for (let i = 1; i <= MAX_PLAYERS; i++) {
+    if (!room.players[i]) {
+      createBot(roomId, i);
+      botsAdded = true;
+    }
+  }
+
+  if (botsAdded) {
+    // Broadcast updated roster
+    io.to(roomId).emit('playerJoined', {
+      players: room.players,
+      positions: room.positions,
+      speeds: room.speeds,
+      hostSocketId: room.hostSocketId,
+      maxPlayers: MAX_PLAYERS,
+      minToStart: MIN_TO_START
+    });
+
+    // Auto-start the game after bots are added
+    setTimeout(() => {
+      if (room && !room.gameStarted && Object.keys(room.players).length >= MIN_TO_START) {
+        startGame(roomId);
+      }
+    }, 2000); // Give players 2 seconds to see the bots joined
+  }
+}
+
+// Start bot AI after race begins
+function startBotAI(roomId, playerId, delay = 0) {
+  const room = rooms[roomId];
+  if (!room || !room.players[playerId] || !room.players[playerId].isBot) return;
+
+  // Clear any existing interval
+  const intervalKey = roomId + '_' + playerId;
+  if (botIntervals[intervalKey]) {
+    clearInterval(botIntervals[intervalKey]);
+  }
+
+  // Randomize bot skill: tap every 150-400ms (varies per bot)
+  const botSpeed = 150 + Math.random() * 250;
+  const variance = 50; // Add randomness to each tap
+
+  // Wait for countdown to finish before starting bot
+  setTimeout(() => {
+    botIntervals[intervalKey] = setInterval(() => {
+    if (!room.gameStarted || room.finishTimes[playerId]) {
+      clearInterval(botIntervals[intervalKey]);
+      delete botIntervals[intervalKey];
+      return;
+    }
+
+    // Simulate tap with slight randomness
+    const tapDelay = Math.random() * variance - variance/2;
+    
+    setTimeout(() => {
+      if (room.gameStarted && !room.finishTimes[playerId]) {
+        // Simulate the same tap logic as real players
+        const now = Date.now();
+        const last = room.tapStreaks[playerId] || 0;
+        const diff = now - last;
+
+        let boost = 8;
+        if (diff < 200) boost = 12;
+        if (diff < 120) boost = 16;
+
+        room.positions[playerId] = (room.positions[playerId] || 20) + boost;
+        room.speeds[playerId] = boost;
+        room.tapStreaks[playerId] = now;
+
+        io.to(roomId).emit('updateState', {
+          positions: room.positions,
+          speeds: room.speeds
+        });
+
+        io.to(roomId).emit('startAnimation', { playerId });
+        clearTimeout(room.stopTimers[playerId]);
+        room.stopTimers[playerId] = setTimeout(() => {
+          io.to(roomId).emit('stopAnimation', { playerId });
+        }, 300);
+      }
+    }, Math.max(0, tapDelay));
+    }, botSpeed);
+  }, delay); // Wait for countdown before starting bot tapping
+}
+
+// Stop all bot AI in a room
+function stopBotAI(roomId) {
+  Object.keys(botIntervals).forEach(key => {
+    if (key.startsWith(roomId + '_')) {
+      clearInterval(botIntervals[key]);
+      delete botIntervals[key];
+    }
+  });
+}
+
+// Helper function to start game
+function startGame(roomId) {
+  const room = rooms[roomId];
+  if (!room || room.gameStarted) return;
+
+  room.gameStarted = true;
+  room.finishTimes = {};
+  const startPos = 20;
+  
+  Object.keys(room.players).forEach(pid => {
+    room.positions[pid] = startPos;
+    room.speeds[pid] = 0;
+    
+    // Start bot AI with 4 second delay (3 second countdown + 1 second "GO!")
+    if (room.players[pid].isBot) {
+      startBotAI(roomId, pid, 4000);
+    }
+  });
+  
+  io.to(roomId).emit('gameStarted', {
+    positions: room.positions,
+    speeds: room.speeds
+  });
+  
+  console.log(`Race started in ${roomId} with ${Object.keys(room.players).length} players`);
+}
+
 // ---- Helpers (global lobby → assign to a waiting room) ----
 function generateRoomCode(len = 6) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -88,6 +253,18 @@ io.on('connection', (socket) => {
       maxPlayers: MAX_PLAYERS,
       minToStart: MIN_TO_START
     });
+
+    // Set timer to fill with bots after 8 seconds if not enough players
+    if (botFillTimers[rid]) {
+      clearTimeout(botFillTimers[rid]);
+    }
+    botFillTimers[rid] = setTimeout(() => {
+      if (room && !room.gameStarted && Object.keys(room.players).length < MAX_PLAYERS) {
+        console.log(`Filling room ${rid} with bots after timeout`);
+        fillWithBots(rid);
+      }
+      delete botFillTimers[rid];
+    }, 8000);
   });
 
   // Player claims a runner slot and joins the room roster
@@ -121,7 +298,7 @@ io.on('connection', (socket) => {
 
     // Slot guard: if another socket already owns this playerNum, reject
     const existing = room.players[playerNum];
-    if (existing && existing.socketId !== socket.id) {
+    if (existing && existing.socketId !== socket.id && !existing.isBot) {
       socket.emit('slotTaken', { playerNum });
       return;
     }
@@ -152,18 +329,7 @@ io.on('connection', (socket) => {
 
     // Auto-start when the room is full (still allow host-start for 2–3)
     if (Object.keys(room.players).length === MAX_PLAYERS && !room.gameStarted) {
-      room.gameStarted = true;
-      room.finishTimes = {};
-      const startPos = 20;
-      Object.keys(room.players).forEach(pid => {
-        room.positions[pid] = startPos;
-        room.speeds[pid] = 0;
-      });
-      io.to(rid).emit('gameStarted', {
-        positions: room.positions,
-        speeds: room.speeds
-      });
-      console.log(`Race auto-started in ${rid} (room full)`);
+      startGame(rid);
     }
   });
 
@@ -178,11 +344,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    io.to(rid).emit('gameStarted', {
-      positions: room.positions,
-      speeds: room.speeds
-    });
-    room.gameStarted = true;
+    startGame(rid);
   });
 
   // Tap action (boost based on tap cadence) + ANIMATION SYNC
@@ -235,6 +397,16 @@ io.on('connection', (socket) => {
   socket.on('resetRoom', (rid) => {
     const room = rooms[rid];
     if (!room) return;
+    
+    // Stop all bots in this room
+    stopBotAI(rid);
+    
+    // Clear bot fill timer if exists
+    if (botFillTimers[rid]) {
+      clearTimeout(botFillTimers[rid]);
+      delete botFillTimers[rid];
+    }
+    
     room.isResetting = true;
 
     // Get all current room members before clearing
@@ -296,7 +468,7 @@ io.on('connection', (socket) => {
 
       // Reassign host if host left
       if (room.hostSocketId === socket.id) {
-        const next = Object.values(room.players)[0];
+        const next = Object.values(room.players).find(p => !p.isBot);
         room.hostSocketId = next ? next.socketId : null;
       }
 
