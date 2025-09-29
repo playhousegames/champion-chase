@@ -506,10 +506,24 @@
       );
     }
     .lane { position: relative; z-index: 3; height: 25%; border-bottom: 2px dashed rgba(255,255,255,.8); display: flex; align-items: center; }
-    .runner {
-      position: absolute; z-index: 3; left: 20px; width: 32px; height: 32px; image-rendering: pixelated; transition: left .08s linear;
-      backface-visibility: hidden; transform: translateZ(0); will-change: background-image, left;
-    }
+  /* Add this to your <style> section for better Android compatibility */
+.runner {
+  position: absolute; 
+  z-index: 3; 
+  left: 20px; 
+  width: 32px; 
+  height: 32px; 
+  image-rendering: pixelated;
+  image-rendering: -webkit-optimize-contrast; /* Safari/Android */
+  image-rendering: crisp-edges; /* Better cross-browser */
+  transition: left .08s linear;
+  backface-visibility: hidden; 
+  transform: translateZ(0); 
+  will-change: background-image, left;
+  /* Force hardware acceleration on Android */
+  -webkit-transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+}
     .name-label { position: absolute; top: 2px; left: 10px; font-size: .75rem; color: yellow; }
 
     /* Pixel countdown */

@@ -703,17 +703,46 @@ var gameGraphics = {
   },
 
   // UPDATE THIS EXISTING METHOD:
-  loadCharacterFrames: function(characterId, frameUrls) {
-    if (!this.characters[characterId]) return false;
-    this.characters[characterId].frames = frameUrls.slice();
-    this.characters[characterId].loaded = true;
-    
-    // ADD THIS LINE:
-    this.preloadImages(characterId);
-    
-    this.updateRunnerSprite(characterId);
-    return true;
-  },
+// In your gameGraphics object, REPLACE the existing loadCharacterFrames method:
+
+loadCharacterFrames: function(characterId, frameUrls) {
+  if (!this.characters[characterId]) return false;
+  
+  this.characters[characterId].frames = frameUrls.slice();
+  this.characters[characterId].loaded = false; // Set to false initially
+  
+  // Preload all images and wait for them to load
+  var loadedCount = 0;
+  var totalImages = frameUrls.length;
+  
+  frameUrls.forEach(function(url) {
+    var img = new Image();
+    img.onload = function() {
+      loadedCount++;
+      console.log(`Loaded sprite ${loadedCount}/${totalImages}: ${url}`);
+      
+      // When all images are loaded, mark as ready and update sprite
+      if (loadedCount === totalImages) {
+        gameGraphics.characters[characterId].loaded = true;
+        console.log(`Character ${characterId} fully loaded`);
+        gameGraphics.updateRunnerSprite(characterId);
+      }
+    };
+    img.onerror = function() {
+      console.error(`Failed to load sprite: ${url}`);
+      loadedCount++; // Still increment to prevent hanging
+      if (loadedCount === totalImages) {
+        gameGraphics.characters[characterId].loaded = true;
+        gameGraphics.updateRunnerSprite(characterId);
+      }
+    };
+    img.src = url;
+  });
+  
+  return true;
+},
+
+// Remove the old preloadImages method if it's separate
   // Tamago
   loadCharacter1Frames: function() {
     return this.loadCharacterFrames(1, [
@@ -762,37 +791,48 @@ var gameGraphics = {
   },
 
   // Apply first sprite frame + store frames on element for animation
-  updateRunnerSprite: function(playerId) {
-    var runner = document.getElementById('runner' + playerId);
-    if (!runner) return;
+updateRunnerSprite: function(playerId) {
+  var runner = document.getElementById('runner' + playerId);
+  if (!runner) {
+    console.log('No runner element for player', playerId);
+    return;
+  }
 
-    var character = this.characters[playerId];
-    if (!character || !character.loaded || character.frames.length === 0) return;
+  var character = this.characters[playerId];
+  if (!character || !character.loaded || character.frames.length === 0) {
+    console.log('Character not ready for player', playerId, character);
+    return;
+  }
 
-    runner.style.width = '32px';
-    runner.style.height = '32px';
-    runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
-    runner.style.backgroundSize = 'cover';
-    runner.style.backgroundRepeat = 'no-repeat';
-    runner.textContent = '';
-    runner.innerHTML = '';
-
-    runner.dataset.frames = JSON.stringify(character.frames);
-    runner.dataset.currentFrame = '0';
-  },
+  runner.style.width = '32px';
+  runner.style.height = '32px';
+  runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
+  runner.style.backgroundSize = 'cover';
+  runner.style.backgroundRepeat = 'no-repeat';
+  runner.textContent = '';
+  runner.innerHTML = '';
+  runner.dataset.frames = JSON.stringify(character.frames);
+  runner.dataset.currentFrame = '0';
+  
+  console.log('Sprite updated for player', playerId, 'frame:', character.frames[0]);
+},
 
   // Advance to next frame (used while "running")
-  animateSprite: function(playerId) {
-    var runner = document.getElementById('runner' + playerId);
-    if (!runner || !runner.dataset.frames) return;
-
-    var frames = JSON.parse(runner.dataset.frames);
-    var currentFrame = parseInt(runner.dataset.currentFrame || '0', 10);
-    var nextFrame = (currentFrame + 1) % frames.length;
-
-    runner.style.backgroundImage = 'url(' + frames[nextFrame] + ')';
-    runner.dataset.currentFrame = String(nextFrame);
+animateSprite: function(playerId) {
+  var runner = document.getElementById('runner' + playerId);
+  if (!runner || !runner.dataset.frames) {
+    console.log('Cannot animate player', playerId, 'no frames');
+    return;
   }
+
+  var frames = JSON.parse(runner.dataset.frames);
+  var currentFrame = parseInt(runner.dataset.currentFrame || '0', 10);
+  var nextFrame = (currentFrame + 1) % frames.length;
+
+  console.log('Animating player', playerId, 'to frame', nextFrame, frames[nextFrame]);
+  runner.style.backgroundImage = 'url(' + frames[nextFrame] + ')';
+  runner.dataset.currentFrame = String(nextFrame);
+}
 };
 
 /* ------------------------------
@@ -1002,7 +1042,12 @@ function lockScroll(shouldLock) {
 /* ------------------------------
    9) UI RESET HELPER
 ------------------------------ */
+/* ------------------------------
+   9) UI RESET HELPER (patched)
+------------------------------ */
 function resetAllUIElements() {
+  console.log('Resetting all UI elements...');
+  
   // Hide race elements
   var elements = [
     { id: 'statusBar', action: el => el.classList.remove('active') },
@@ -1018,44 +1063,104 @@ function resetAllUIElements() {
     if (el) action(el);
   });
 
-  // Reset track
+  // Reset track - DON'T clear innerHTML yet, we need the lane structure
   var track = document.getElementById('track');
   if (track) {
     track.classList.remove('active');
-    track.style.display = 'none';
+    track.style.display = 'block';
     track.style.transform = 'translateX(0px)';
-    track.innerHTML = ''; // Clear old elements
+    // Clear only dynamic elements, keep lane structure
+    track.querySelectorAll('.cherry-blossom, .position-announcement, .power-up-text, .kanji-effect, .track-obstacle, .speed-zone, .power-up, .confetti-tape').forEach(el => el.remove());
   }
 
+  // Reset container
   var container = document.querySelector('.track-container');
   if (container) {
     container.classList.remove('active');
-    container.style.display = 'none';
+    container.style.display = 'block';
+    container.style.transform = 'translateX(0px)';
   }
 
-  // Reset runners
+  // Reset camera offset
+  if (typeof cameraState !== 'undefined') {
+    cameraState.cameraOffset = 0;
+  }
+
+  // Reset runners but keep them in DOM
   for (var i = 1; i <= 4; i++) {
+    var lane = document.getElementById('lane' + i);
     var runner = document.getElementById('runner' + i);
+    var nameLabel = document.getElementById('name' + i);
+    
+    if (lane) lane.style.display = 'none'; // Hide all lanes initially
+    
     if (runner) {
       runner.style.left = '20px';
-      runner.classList.remove('running', 'active', 'winner');
+      runner.classList.remove('running', 'active', 'winner', 'bot-runner', 'speed-boost', 'slowed', 'shielded');
+      runner.style.backgroundImage = ''; // Clear background
+      runner.textContent = ''; // Clear any text
+      runner.innerHTML = ''; // Clear any HTML
       if (runner.dataset.frames) {
-        var frames = JSON.parse(runner.dataset.frames);
-        if (frames.length > 0) {
-          runner.style.backgroundImage = 'url(' + frames[0] + ')';
-          runner.dataset.currentFrame = '0';
-        }
+        delete runner.dataset.frames;
+        delete runner.dataset.currentFrame;
       }
+    }
+    
+    if (nameLabel) {
+      nameLabel.textContent = '';
+      nameLabel.style.opacity = '1';
     }
   }
 
+  // Reset state flags BEFORE setupLanes is called elsewhere
+  gameState.raceStarted = false;
+  gameState.raceFinished = false;
+  gameState.positions = {};
+  gameState.speeds = {};
+  gameState.finishTimes = {};
+  gameState.countdownActive = false;
+  gameState.isResetting = false;
+  playerStates = {};
+
   // Re-lock scroll for lobby
   lockScroll(true);
-  
-  // Rebuild track structure for next game
+
+  // Rebuild finish line
   ensureFinishLine();
-  setupLanes();
+
+  // Reload all sprites so they're ready when players join
+  gameGraphics.loadAllSushiCharacters();
+
+  // Show lobby again
+  var lobby = document.getElementById('lobby');
+  if (lobby) {
+    lobby.style.display = 'flex';
+  }
+
+  // Re-enable join button
+  var joinBtn = document.getElementById('joinRoomBtn');
+  if (joinBtn) {
+    joinBtn.style.display = 'inline-block';
+    joinBtn.disabled = false;
+    joinBtn.textContent = 'Join Game';
+  }
+
+  // Hide start button
+  var startBtn = document.getElementById('startBtn');
+  if (startBtn) startBtn.style.display = 'none';
+
+  // Clear player list
+  var playerList = document.getElementById('playerList');
+  if (playerList) playerList.innerHTML = '';
+  
+  var counterEl = document.getElementById('playerCounter');
+  if (counterEl) counterEl.textContent = 'Players joined: 0/4';
+
+  console.log('UI reset complete - waiting for new players');
 }
+
+
+
 
 /* ------------------------------
    10) INITIALIZE
@@ -1066,6 +1171,7 @@ function initGame() {
   document.addEventListener('touchstart', function(){ initSounds(); initWebAudio(); }, { once: true });
 
   // load sprites
+  console.log('Loading sushi character sprites...');
   gameGraphics.loadAllSushiCharacters();
 
   function initEnhancedFeatures() {
@@ -1329,6 +1435,7 @@ socket.on('gameStarted', function (data) {
   gameState.raceFinished = false;
   gameState.finishTimes = {};
 
+  if (data && data.players)   gameState.players   = data.players;
   if (data && data.positions) gameState.positions = data.positions;
   if (data && data.speeds)    gameState.speeds    = data.speeds;
 
@@ -1357,6 +1464,36 @@ socket.on('gameStarted', function (data) {
 
   console.log('Race starting...');
 });
+
+
+
+// Reset room handler
+// Reset room handler - REPLACE YOUR EXISTING ONE
+socket.on('resetRoom', (data) => {
+  console.log('Reset room event received from server', data);
+  
+  // First reset UI
+  resetAllUIElements();
+
+  // Then clear game state
+  gameState.players     = {};
+  gameState.positions   = {};
+  gameState.speeds      = {};
+  gameState.finishTimes = {};
+  gameState.raceStarted = false;
+  gameState.raceFinished = false;
+  gameState.startTime = null;
+  gameState.roomId = null;
+  
+  // Request new room assignment
+  socket.emit('quickRace');
+  
+  console.log('Local reset complete, requested new room');
+});
+
+// Remove the old roomReset handler if you have one
+
+
 
 socket.on('updateState', function (data) {
   if (gameState.isResetting || gameState.raceFinished) return;
@@ -1391,17 +1528,31 @@ socket.on('stopAnimation', function({ playerId }) {
   stopRunnerAnimation(playerId);
 });
 
-socket.on('endRace', function (finishTimes) {
+socket.on('endRace', (data) => {
   if (gameState.isResetting || gameState.raceFinished) return;
 
-  gameState.finishTimes = finishTimes || {};
+  console.log("EndRace payload:", data);
+
+  // Update state
+  gameState.players     = data.players     || {};
+  gameState.positions   = data.positions   || {};
+  gameState.speeds      = data.speeds      || {};
+  gameState.finishTimes = data.finishTimes || {};
   gameState.raceFinished = true;
   gameLoopRunning = false;
 
-  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  if (timerInterval) { 
+    clearInterval(timerInterval); 
+    timerInterval = null; 
+  }
 
-  setTimeout(function () { if (!gameState.isResetting) endRace(); }, 400);
+  // Show results after a brief delay
+  setTimeout(function() {
+    showResults();
+  }, 500);
 });
+
+
 
 // Updated roomReset handler
 socket.on('roomReset', function(data) {
@@ -1465,12 +1616,23 @@ function setupLanes() {
         runner.style.left = pos + 'px';
         runner.classList.add('active');
         
-        // Mark bot runners
         if (gameState.players[i].isBot) {
           runner.classList.add('bot-runner');
         }
         
-        gameGraphics.updateRunnerSprite(i);
+        // CRITICAL: Wait for sprites to load before updating
+        if (gameGraphics.characters[i] && gameGraphics.characters[i].loaded) {
+          gameGraphics.updateRunnerSprite(i);
+        } else {
+          // Retry after a short delay for slow connections
+          setTimeout(function(playerId) {
+            if (gameGraphics.characters[playerId] && gameGraphics.characters[playerId].loaded) {
+              gameGraphics.updateRunnerSprite(playerId);
+            } else {
+              console.warn(`Sprites still not loaded for player ${playerId}`);
+            }
+          }.bind(null, i), 500);
+        }
 
         if (!playerStates[i]) {
           playerStates[i] = {
@@ -1486,7 +1648,6 @@ function setupLanes() {
       }
       if (nameLabel) {
         var playerName = (gameState.players[i].name || ('Runner ' + i)).toUpperCase();
-        // Add [BOT] to name label during race
         if (gameState.players[i].isBot) {
           playerName += ' [BOT]';
           nameLabel.style.opacity = '0.8';
@@ -1507,7 +1668,7 @@ function getPlayerColor(i) {
 }
 
 /* ------------------------------
-   13) MOBILE CONTROLS
+   13) MOBILE CONTROLS (UPDATED - NO TAP DURING COUNTDOWN)
 ------------------------------ */
 function setupMobileControls() {
   var controlLayout = document.getElementById('controlLayout');
@@ -1561,6 +1722,12 @@ function tapPress(e, playerId, btn) {
   e.preventDefault(); 
   e.stopPropagation();
   
+  // PREVENT TAPPING DURING COUNTDOWN
+  if (gameState.countdownActive) {
+    console.log('Tapping blocked - countdown in progress');
+    return;
+  }
+  
   if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) return;
 
   btn.classList.add('pressed');
@@ -1570,7 +1737,7 @@ function tapPress(e, playerId, btn) {
 
   // PREDICTIVE MOVEMENT - Move locally first
   var currentPos = gameState.positions[playerId] || 20;
-  var predictedMovement = 8; // Base movement amount
+  var predictedMovement = 8;
   var newPosition = currentPos + predictedMovement;
   
   // Update local position immediately
@@ -1665,10 +1832,13 @@ function spawnDust(playerId) {
 /* ------------------------------
    15) COUNTDOWN / TIMER / GAMELOOP
 ------------------------------ */
+/* ------------------------------
+   15) COUNTDOWN / TIMER / GAMELOOP (UPDATED)
+------------------------------ */
 function startCountdown() {
   if (gameState.isResetting) return;
 
-  gameState.countdownActive = true;
+  gameState.countdownActive = true;  // Block tapping
   var count = 3;
   var countdownEl = document.getElementById('countdown');
   if (!countdownEl) return;
@@ -1691,19 +1861,18 @@ function startCountdown() {
     } else if (count === 0) {
       countdownEl.textContent = 'GO!';
       if (sounds.initialized) sounds.playGo();
-      // FIXED: Check if kanjiEffects exists
       if (typeof kanjiEffects !== 'undefined') {
-        kanjiEffects.showKanji('start'); // Global kanji, no playerId
+        kanjiEffects.showKanji('start');
       }
       launchTickerTape();
     } else {
       clearInterval(interval);
       countdownEl.style.display = 'none';
-      gameState.countdownActive = false;
+      gameState.countdownActive = false;  // Allow tapping now
       gameState.startTime = Date.now();
       startTimer();
       startGameLoop();
-      console.log('Race timer started');
+      console.log('Race timer started - tapping now enabled');
     }
   }, 1000);
 }
@@ -1822,6 +1991,12 @@ if (myPlayerId) {
 /* ------------------------------
    17) FINISH & RESULTS
 ------------------------------ */
+/* ------------------------------
+   17) FINISH & RESULTS - FIXED
+------------------------------ */
+/* ------------------------------
+   17) FINISH & RESULTS
+------------------------------ */
 function checkFinish(playerId) {
   if (!playerStates[playerId] || gameState.finishTimes[playerId] || gameState.isResetting) return;
 
@@ -1829,8 +2004,7 @@ function checkFinish(playerId) {
   if (trackElement) gameState.trackWidth = trackElement.offsetWidth;
 
   var isMobile = window.innerWidth <= 480;
-  // INCREASE THESE VALUES to make race longer:
-  var finishLineOffset = isMobile ? 80 : 100;  // Was 50/80, now 150/200
+  var finishLineOffset = isMobile ? 80 : 100;
   var finishLinePosition = gameState.trackWidth - finishLineOffset - 20;
 
   var currentPosition = (typeof gameState.positions[playerId] === 'number') ? gameState.positions[playerId] : 20;
@@ -1849,20 +2023,31 @@ function checkFinish(playerId) {
     // If every active player finished, end race
     var allFinished = true;
     for (var id in gameState.players) {
-      if (typeof gameState.finishTimes[id] === 'undefined') { allFinished = false; break; }
+      if (typeof gameState.finishTimes[id] === 'undefined') { 
+        allFinished = false; 
+        break; 
+      }
     }
     if (allFinished) {
-      setTimeout(function(){ socket.emit('endRace', gameState.roomId); }, 300);
+      setTimeout(function(){ 
+        socket.emit('endRace', gameState.roomId); 
+      }, 300);
     }
   }
 }
 
 function endRace() {
-  showResults();
-  console.log('Race finished - showing results.');
+  console.log('Race ended - preparing to show results');
+  setTimeout(function() {
+    showResults();
+  }, 500);
 }
 
 function showResults() {
+  if (gameState.isResetting) return;
+
+  console.log('Showing results with finishTimes:', gameState.finishTimes);
+
   var mobileControls = document.getElementById('mobileControls');
   var track = document.getElementById('track');
   var results = document.getElementById('results');
@@ -1875,47 +2060,71 @@ function showResults() {
   if (statusBar) statusBar.classList.remove('active');
   if (grandstand) grandstand.classList.remove('active');
 
-  if (track)   { track.classList.remove('active');   track.style.display = 'none'; }
-  if (container){container.classList.remove('active');container.style.display = 'none'; }
-
-  // Show results
-  if (results) {
-    results.classList.add('active');
-    results.style.display = '';
+  if (track) { 
+    track.classList.remove('active'); 
+    track.style.display = 'none'; 
+  }
+  if (container) {
+    container.classList.remove('active');
+    container.style.display = 'none'; 
   }
 
-  // Scroll to top so results are visible
+  // Show results screen
+  if (results) {
+    results.classList.add('active');
+    results.style.display = 'flex';
+  }
+
+  // Scroll to top
   var screen = document.getElementById('screen');
   if (screen) screen.scrollTop = 0;
   window.scrollTo(0, 0);
 
+  // Populate leaderboard
   var leaderboard = document.getElementById('leaderboard');
-  if (!leaderboard) return;
+  if (!leaderboard) {
+    console.error('Leaderboard element not found!');
+    return;
+  }
+  
   leaderboard.innerHTML = '';
 
+  // Sort players by finish time
   var sorted = Object.keys(gameState.finishTimes).map(function(pid){
-    return { playerId: pid, time: gameState.finishTimes[pid], name: (gameState.players[pid] && gameState.players[pid].name) || ('Runner ' + pid) };
-  }).sort(function(a,b){ return a.time - b.time; });
+    return { 
+      playerId: pid, 
+      time: gameState.finishTimes[pid], 
+      name: (gameState.players[pid] && gameState.players[pid].name) || ('Runner ' + pid) 
+    };
+  }).sort(function(a,b){ 
+    return a.time - b.time; 
+  });
 
   console.log("Sorted results:", sorted);
 
+  if (sorted.length === 0) {
+    leaderboard.innerHTML = '<div style="color:#888;">No results available</div>';
+    return;
+  }
+
+  // Display results
   var medals = ['🥇','🥈','🥉','🏅'];
   sorted.forEach(function(r, index){
     var row = document.createElement('div');
     row.className = 'result-item';
-    row.innerHTML = '<span>' + (medals[index] || '🏅') + ' ' + (index+1) + '. ' + r.name.toUpperCase() + '</span> <span>' + r.time.toFixed(3) + '</span>';
+    row.innerHTML = '<span>' + (medals[index] || '🏅') + ' ' + (index+1) + '. ' + 
+                    r.name.toUpperCase() + '</span> <span>' + r.time.toFixed(3) + 's</span>';
     leaderboard.appendChild(row);
   });
 
-  // Winner celebration bounce
+  // Winner celebration
   var winner = sorted[0];
   if (winner) {
     var winnerRunner = document.getElementById('runner' + winner.playerId);
     if (winnerRunner) winnerRunner.classList.add('winner');
     if (sounds.initialized) sounds.playVictory();
-    // FIXED: Check if kanjiEffects exists
     if (typeof kanjiEffects !== 'undefined') {
-      kanjiEffects.showKanji('victory'); // Global kanji
+      kanjiEffects.showKanji('victory');
     }
   }
 }
@@ -1924,12 +2133,40 @@ function showResults() {
    18) RESET
 ------------------------------ */
 function resetGame() {
-  if (gameState.isResetting) return;
-  trackElements.clearElements();
-  powerUpSystem.activePowerUps = {};
-  document.querySelectorAll('.cherry-blossom, .position-announcement, .power-up-text, .kanji-effect').forEach(el => el.remove());
+  if (gameState.isResetting) {
+    console.log('Reset already in progress, ignoring duplicate call');
+    return;
+  }
+  
   console.log("Initiating game reset...");
+  gameState.isResetting = true;
+  
+  // Clear dynamic elements
+  if (typeof trackElements !== 'undefined') trackElements.clearElements();
+  if (typeof powerUpSystem !== 'undefined') powerUpSystem.activePowerUps = {};
+  document.querySelectorAll('.cherry-blossom, .position-announcement, .power-up-text, .kanji-effect').forEach(el => el.remove());
+  
+  // Stop all intervals and timers
+  gameState.countdownActive = false;
+  gameLoopRunning = false;
+  
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  
+  // Clear all animations
+  for (var id in playerStates) {
+    if (playerStates[id] && playerStates[id].animationInterval) {
+      clearInterval(playerStates[id].animationInterval);
+      playerStates[id].animationInterval = null;
+    }
+  }
+  
+  // Tell server to reset
   socket.emit('resetRoom', gameState.roomId);
+  
+  console.log("Reset request sent to server");
 }
 
 /* ------------------------------
