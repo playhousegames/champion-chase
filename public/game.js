@@ -10,6 +10,8 @@
 
 const socket = io();
 
+const SPEED_MULTIPLIER = 3; // same as server
+
 /* ------------------------------
    1) GLOBAL STATE
 ------------------------------ */
@@ -61,7 +63,7 @@ var kanjiEffects = {
     // Position based on whether it's for a specific player or global
     if (playerId) {
       const runner = document.getElementById('runner' + playerId);
-      if (runner && runner.parentElement) {  // Check parentElement exists
+      if (runner && runner.parentElement) {
         kanji.style.cssText = `
           position: absolute;
           left: ${runner.offsetLeft + 16}px;
@@ -75,7 +77,6 @@ var kanjiEffects = {
           pointer-events: none;
         `;
         
-        // Use the track container instead of track directly
         const track = document.getElementById('track') || runner.parentElement;
         if (track) track.appendChild(kanji);
       }
@@ -105,144 +106,253 @@ var kanjiEffects = {
   }
 };
 
-// SIMULTANEOUS PRESS DEFENSE SYSTEM
-// Replace the defense system with this version
-
+/* ------------------------------
+   DEFENSE + STAMINA SYSTEM
+------------------------------ */
+/* ------------------------------
+   DEFENSE + STAMINA SYSTEM
+------------------------------ */
 var defenseSystem = {
   activeAttacks: {},
   blockWindows: {},
-  pressStates: {}, // Track which buttons are currently pressed
-  
-initiateAttack: function(targetPlayerId, attackType, duration) {
-  console.log(`Attack ${attackType} incoming for player ${targetPlayerId}`);
-  
-  const targetPlayer = gameState.players[targetPlayerId];
-  
-  // Don't show warning for bots
-  if (targetPlayer && targetPlayer.isBot) {
-    // Just apply the effect directly to bots without showing UI
-    setTimeout(() => {
-      if (this.blockWindows[targetPlayerId] && !this.blockWindows[targetPlayerId].blocked) {
-        this.applyAttackEffect(targetPlayerId, attackType, duration);
-        delete this.blockWindows[targetPlayerId];
+  pressStates: {},
+
+  // ==== Stamina Tracking ====
+  stamina: {},
+  MAX_STAMINA: 100,
+  STAMINA_COST: 5,
+  STAMINA_REGEN: 2,
+  STAMINA_TICK_MS: 200,
+
+  initStamina: function(playerId) {
+    if (!this.stamina[playerId]) this.stamina[playerId] = this.MAX_STAMINA;
+
+    const runner = document.getElementById('runner' + playerId);
+    if (runner) {
+      let bar = runner.querySelector('.stamina-bar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'stamina-bar';
+        bar.style.cssText = `
+          position: absolute;
+          bottom: -8px;
+          left: 0;
+          height: 5px;
+          width: ${this.stamina[playerId]}%;
+          background: lime;
+          transition: width 0.2s linear, background 0.2s linear;
+        `;
+        runner.appendChild(bar);
       }
-    }, 1300);
-    return;
-  }
+    }
+  },
+
+  initiateAttack: function(targetPlayerId, attackType, duration) {
+  console.log(`Initiating attack on player ${targetPlayerId}: ${attackType}`);
   
-  // Only show warning if this is the local player (not a bot, not other players)
-  const isLocalPlayer = targetPlayer && targetPlayer.socketId === socket.id;
-  
-  if (isLocalPlayer) {
-    this.showAttackWarning(targetPlayerId, attackType);
-  }
-  
-  const blockWindowStart = Date.now() + 800;
-  const blockWindowEnd = blockWindowStart + 500;
-  
+  // Create block window for target
   this.blockWindows[targetPlayerId] = {
-    start: blockWindowStart,
-    end: blockWindowEnd,
+    startTime: Date.now(),
     attackType: attackType,
-    duration: duration,
+    duration: 1300, // 1.3 seconds to react
     blocked: false
   };
   
+  // Show warning to target player
+  const targetPlayer = gameState.players[targetPlayerId];
+  if (targetPlayer && !targetPlayer.isBot && targetPlayer.socketId === socket.id) {
+    this.showAttackWarning(targetPlayerId, attackType);
+  }
+  
+  // If not blocked in time, apply effect
   setTimeout(() => {
-    if (this.blockWindows[targetPlayerId] && !this.blockWindows[targetPlayerId].blocked) {
-      console.log(`Player ${targetPlayerId} failed to block!`);
+    const window = this.blockWindows[targetPlayerId];
+    if (window && !window.blocked) {
+      console.log(`Attack hit player ${targetPlayerId} - applying slow effect`);
       this.applyAttackEffect(targetPlayerId, attackType, duration);
-      delete this.blockWindows[targetPlayerId];
+      if (typeof kanjiEffects !== 'undefined') {
+        kanjiEffects.showKanji('slow', targetPlayerId);
+      }
     }
+    delete this.blockWindows[targetPlayerId];
   }, 1300);
 },
-  
-  // Track button press state
-  registerPress: function(playerId, side) {
-    if (!this.pressStates[playerId]) {
-      this.pressStates[playerId] = { L: false, R: false, pressTime: {} };
+ 
+  spendStamina: function(playerId) {
+    this.initStamina(playerId);
+    if (this.stamina[playerId] > 0) {
+      this.stamina[playerId] = Math.max(0, this.stamina[playerId] - this.STAMINA_COST);
+      return true;
+    } else {
+      return false;
     }
-    
-    const now = Date.now();
-    this.pressStates[playerId][side] = true;
-    this.pressStates[playerId].pressTime[side] = now;
-    
-    // Check if both are pressed within 100ms window
-    this.checkSimultaneousPress(playerId, now);
   },
-  
-  registerRelease: function(playerId, side) {
+
+  regenLoopStarted: false,
+  startRegenLoop: function() {
+    if (this.regenLoopStarted) return;
+    this.regenLoopStarted = true;
+    setInterval(() => {
+      for (let pid in this.stamina) {
+        if (this.stamina[pid] < this.MAX_STAMINA) {
+          this.stamina[pid] = Math.min(this.MAX_STAMINA, this.stamina[pid] + this.STAMINA_REGEN);
+          const runner = document.getElementById('runner' + pid);
+          if (runner) {
+            let bar = runner.querySelector('.stamina-bar');
+            if (!bar) {
+              bar = document.createElement('div');
+              bar.className = 'stamina-bar';
+              bar.style.cssText = `
+                position: absolute;
+                bottom: -8px;
+                left: 0;
+                height: 5px;
+                background: lime;
+                transition: width 0.2s linear, background 0.2s linear;
+              `;
+              runner.appendChild(bar);
+            }
+            bar.style.width = this.stamina[pid] + '%';
+            bar.style.background = this.stamina[pid] > 30 ? 'lime' : 'red';
+          }
+        }
+      }
+    }, this.STAMINA_TICK_MS);
+  },
+
+  // ==== Button Handling (FIXED TIMING) ====
+registerPress: function(playerId, side) {
+  this.startRegenLoop();
+  this.initStamina(playerId);
+
+  if (!this.pressStates[playerId]) {
+    this.pressStates[playerId] = { L: false, R: false, pressTime: {}, clearTimers: {} };
+  }
+
+  const now = Date.now();
+  this.pressStates[playerId][side] = true;
+  this.pressStates[playerId].pressTime[side] = now;
+
+  // Auto-clear after 200ms (reduced from 400ms)
+  if (this.pressStates[playerId].clearTimers[side]) {
+    clearTimeout(this.pressStates[playerId].clearTimers[side]);
+  }
+  this.pressStates[playerId].clearTimers[side] = setTimeout(() => {
     if (this.pressStates[playerId]) {
       this.pressStates[playerId][side] = false;
+      delete this.pressStates[playerId].pressTime[side];
     }
-  },
-  
-  checkSimultaneousPress: function(playerId, now) {
-    const state = this.pressStates[playerId];
-    if (!state) return;
+  }, 200); // Shorter window
+
+  // ONLY check for simultaneous press if BOTH times exist and are recent
+  if (this.pressStates[playerId].L && this.pressStates[playerId].R) {
+    const lTime = this.pressStates[playerId].pressTime.L;
+    const rTime = this.pressStates[playerId].pressTime.R;
     
-    // Both buttons pressed?
-    if (state.L && state.R) {
-      const lTime = state.pressTime.L || 0;
-      const rTime = state.pressTime.R || 0;
+    // Both times must exist
+    if (lTime && rTime) {
       const timeDiff = Math.abs(lTime - rTime);
-      
-      // Must press within 100ms of each other
-      if (timeDiff <= 100) {
-        this.attemptBlock(playerId, timeDiff);
+      console.log(`Both buttons detected! Time difference: ${timeDiff}ms`);
+
+      if (timeDiff <= 150) { // Tighter window: 150ms total
+        if (timeDiff <= 80) {
+          console.log('→ PERFECT timing!');
+          this.checkSimultaneousPress(playerId, now, "perfect");
+        } else {
+          console.log('→ GOOD timing!');
+          this.checkSimultaneousPress(playerId, now, "good");
+        }
+      } else {
+        console.log(`→ Too slow (${timeDiff}ms), treating as separate taps`);
       }
+    }
+  }
+},
+
+  registerRelease: function(playerId, side) {
+    if (this.pressStates[playerId]) {
+      if (this.pressStates[playerId].clearTimers && this.pressStates[playerId].clearTimers[side]) {
+        clearTimeout(this.pressStates[playerId].clearTimers[side]);
+        delete this.pressStates[playerId].clearTimers[side];
+      }
+      this.pressStates[playerId][side] = false;
+      delete this.pressStates[playerId].pressTime[side];
     }
   },
+
+  // ==== Skill Logic (FIXED PRIORITY) ====
+// ==== Skill Logic - BLOCKS ONLY ====
+checkSimultaneousPress: function(playerId, now, grade = "fail") {
+  if (grade === "fail") return;
+
+  console.log(`checkSimultaneousPress for player ${playerId}, grade: ${grade}`);
+
+  // ONLY check for active attacks to block
+  const hasActiveAttack = this.blockWindows[playerId];
   
-  attemptBlock: function(playerId, timeDiff) {
+  if (hasActiveAttack) {
+    console.log('→ Active attack detected, attempting block...');
+    if (this.attemptBlock(playerId, now, grade)) {
+      console.log('→ Block successful!');
+      return;
+    }
+    console.log('→ Block attempt failed');
+  } else {
+    console.log('→ No active attack to block');
+  }
+  
+  // That's it! Power-ups are activated via the dedicated button only
+},
+
+  attemptBlock: function(playerId, now, grade) {
     const window = this.blockWindows[playerId];
-    if (!window) {
-      // No attack to block - wasted the simultaneous press
-      this.showBlockFeedback(playerId, 'NO THREAT', '#666');
+    if (!window) return false;
+
+    window.blocked = true;
+
+    if (grade === "perfect") {
+      this.showBlockFeedback(playerId, "PERFECT!", "#FFD700");
+      this.counterAttack(playerId, 7);
+    } else if (grade === "good") {
+      this.showBlockFeedback(playerId, "BLOCKED!", "#00FF88");
+      this.counterAttack(playerId, 3);
+    } else {
       return false;
     }
-    
-    const now = Date.now();
-    
-    // Check if within block window
-    if (now >= window.start && now <= window.end) {
-      const timing = now - window.start;
-      const windowSize = window.end - window.start;
-      const perfection = 1 - (timing / windowSize);
-      
-      // Also factor in how simultaneous the press was (0-100ms)
-      const simultaneity = 1 - (timeDiff / 100);
-      const totalScore = (perfection * 0.6) + (simultaneity * 0.4);
-      
-      window.blocked = true;
-      
-      if (totalScore > 0.8) {
-        // PERFECT - both timing AND simultaneity
-        this.showBlockFeedback(playerId, 'PERFECT!', '#FFD700');
-        this.counterAttack(playerId, 7); // 7 taps
-        if (sounds.initialized) this.playBlockSound('perfect');
-      } else if (totalScore > 0.5) {
-        // GOOD - decent block
-        this.showBlockFeedback(playerId, 'BLOCKED!', '#00FF88');
-        this.counterAttack(playerId, 3); // 3 taps
-        if (sounds.initialized) this.playBlockSound('good');
-      } else {
-        // WEAK - barely blocked
-        this.showBlockFeedback(playerId, 'WEAK BLOCK', '#88FF88');
-        if (sounds.initialized) this.playBlockSound('weak');
-      }
-      
-      delete this.blockWindows[playerId];
-      return true;
-      
-    } else if (now < window.start) {
-      this.showBlockFeedback(playerId, 'TOO EARLY', '#FF4444');
-      return false;
-    } else {
-      this.showBlockFeedback(playerId, 'TOO LATE', '#FF4444');
-      this.applyAttackEffect(playerId, window.attackType, window.duration);
-      delete this.blockWindows[playerId];
-      return false;
+
+    delete this.blockWindows[playerId];
+    return true;
+  },
+
+  showBlockFeedback: function(playerId, text, color) {
+    const feedback = document.createElement('div');
+    feedback.className = 'block-feedback';
+    feedback.textContent = text;
+    feedback.style.cssText = `
+      position: fixed;
+      top: 35%;
+      left: 50%;
+      transform: translateX(-50%);
+      color: ${color};
+      font-size: 2rem;
+      font-family: 'Press Start 2P', monospace;
+      text-shadow: 3px 3px 0 #000;
+      z-index: 9999;
+      animation: blockFeedbackPop 1s ease-out forwards;
+      pointer-events: none;
+    `;
+    document.body.appendChild(feedback);
+    setTimeout(() => feedback.remove(), 1000);
+  },
+
+  counterAttack: function(playerId, tapCount) {
+    for (let i = 0; i < tapCount; i++) {
+      setTimeout(() => {
+        socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
+      }, i * 50);
+    }
+    if (typeof kanjiEffects !== 'undefined') {
+      kanjiEffects.showKanji('power', playerId);
     }
   },
   
@@ -288,28 +398,6 @@ initiateAttack: function(targetPlayerId, attackType, duration) {
     setTimeout(() => warning.remove(), 1300);
   },
   
-  showBlockFeedback: function(playerId, text, color) {
-    const feedback = document.createElement('div');
-    feedback.className = 'block-feedback';
-    feedback.textContent = text;
-    feedback.style.cssText = `
-      position: fixed;
-      top: 35%;
-      left: 50%;
-      transform: translateX(-50%);
-      color: ${color};
-      font-size: 2rem;
-      font-family: 'Press Start 2P', monospace;
-      text-shadow: 3px 3px 0 #000;
-      z-index: 9999;
-      animation: blockFeedbackPop 1s ease-out forwards;
-      pointer-events: none;
-    `;
-    
-    document.body.appendChild(feedback);
-    setTimeout(() => feedback.remove(), 1000);
-  },
-  
   applyAttackEffect: function(playerId, attackType, duration) {
     const runner = document.getElementById('runner' + playerId);
     if (runner) {
@@ -323,20 +411,8 @@ initiateAttack: function(targetPlayerId, attackType, duration) {
       if (playerStates[playerId]) playerStates[playerId].tapsBlocked = false;
     }, duration);
   },
-  
-  counterAttack: function(playerId, tapCount) {
-    for (let i = 0; i < tapCount; i++) {
-      setTimeout(() => {
-        socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
-      }, i * 50);
-    }
-    
-    if (typeof kanjiEffects !== 'undefined') {
-      kanjiEffects.showKanji('power', playerId);
-    }
-  },
 
-    playBlockSound: function(type) {
+  playBlockSound: function(type) {
     if (!audioCtx) return;
     
     try {
@@ -365,7 +441,9 @@ initiateAttack: function(targetPlayerId, attackType, duration) {
   }
 };
 
-// UPDATED tapPress function - registers presses with defense system
+/* ------------------------------
+   TAP FUNCTIONS
+------------------------------ */
 function tapPress(e, playerId, btn) {
   e.preventDefault(); 
   e.stopPropagation();
@@ -375,7 +453,6 @@ function tapPress(e, playerId, btn) {
     return;
   }
   
-  // Check if taps blocked by attack
   if (playerStates[playerId] && playerStates[playerId].tapsBlocked) {
     console.log('Taps blocked by SOY_TRAP!');
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
@@ -384,51 +461,50 @@ function tapPress(e, playerId, btn) {
   
   if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) return;
 
-  btn.classList.add('pressed');
-
-  // Register press with defense system
   const side = btn.getAttribute('data-side');
+  
+  // Register press for defense system only (for blocking attacks)
   if (side && typeof defenseSystem !== 'undefined') {
     defenseSystem.registerPress(playerId, side);
   }
 
-  if (!playerStates[playerId]) playerStates[playerId] = {};
-  playerStates[playerId].lastTap = Date.now();
+  // Check stamina
+  if (!defenseSystem.spendStamina(playerId)) {
+    console.log("Exhausted! Tap has no effect");
+    return;
+  }
 
-  // Normal movement
-  var currentPos = gameState.positions[playerId] || 20;
-  var predictedMovement = 8;
-  var newPosition = currentPos + predictedMovement;
-  
-  gameState.positions[playerId] = newPosition;
+  // Normal tap movement
+  btn.classList.add('pressed');
   var runner = document.getElementById('runner' + playerId);
   if (runner) {
+    var currentPos = parseFloat(runner.style.left) || 20;
+    var predictedMovement = 8 * 3;
+    var newPosition = currentPos + predictedMovement;
     runner.style.left = newPosition + 'px';
   }
 
   startRunnerAnimation(playerId);
-  socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
-
+  socket.emit('playerAction', { roomId: gameState.roomId, playerId });
   spawnDust(playerId);
   if (sounds.initialized) sounds.playTap();
   if (navigator.vibrate) navigator.vibrate(10);
 }
 
-// UPDATED tapRelease function - registers releases
+
 function tapRelease(e, playerId, btn) {
   e.preventDefault();
   e.stopPropagation();
 
-  const targetBtn = btn || (e.target.closest ? e.target.closest('.touch-btn') : null);
-  if (targetBtn) {
-    targetBtn.classList.remove('pressed');
-    targetBtn.classList.remove('active');
-    
-    // Register release with defense system
-    const side = targetBtn.getAttribute('data-side');
-    if (side && typeof defenseSystem !== 'undefined') {
-      defenseSystem.registerRelease(playerId, side);
-    }
+  // Remove pressed state from button
+  if (btn) {
+    btn.classList.remove('pressed');
+    btn.classList.remove('active');
+  }
+
+  const side = btn ? btn.getAttribute('data-side') : null;
+  if (side && typeof defenseSystem !== 'undefined') {
+    defenseSystem.registerRelease(playerId, side);
   }
 
   const runner = document.getElementById('runner' + playerId);
@@ -440,7 +516,9 @@ function tapRelease(e, playerId, btn) {
   }, 200);
 }
 
-// Mobile controls stay the same - just L and R buttons (no center button needed)
+/* ------------------------------
+   MOBILE CONTROLS
+------------------------------ */
 function setupMobileControls() {
   var controlLayout = document.getElementById('controlLayout');
   if (!controlLayout) return;
@@ -470,48 +548,148 @@ function setupMobileControls() {
     controlLayout.appendChild(wrapper);
   });
 
-  var btns = controlLayout.querySelectorAll('.touch-btn');
-  btns.forEach(function(btn){
-    if (btn._bound) return;
+var btns = controlLayout.querySelectorAll('.touch-btn');
+btns.forEach(function(btn){
+  if (btn._bound) return;
 
-    var pid = parseInt(btn.getAttribute('data-player'), 10);
-    var press = function(e){ tapPress(e, pid, btn); };
-    var release = function(e){ tapRelease(e, pid, btn); };
+  var pid = parseInt(btn.getAttribute('data-player'), 10);
+  
+  var press = function(e){ 
+    tapPress(e, pid, btn); 
+  };
+  
+  var release = function(e){ 
+    tapRelease(e, pid, btn); 
+  };
 
-    btn.addEventListener('touchstart', press, { passive:false });
-    btn.addEventListener('touchend', release, { passive:false });
-    btn.addEventListener('mousedown', press);
-    btn.addEventListener('mouseup', release);
+  // Touch events
+  btn.addEventListener('touchstart', press, { passive: false });
+  btn.addEventListener('touchend', release, { passive: false });
+  btn.addEventListener('touchcancel', release, { passive: false }); // Add this
+  
+  // Mouse events (for testing)
+  btn.addEventListener('mousedown', press);
+  btn.addEventListener('mouseup', release);
+  btn.addEventListener('mouseleave', release); // Add this
 
-    btn._bound = true;
+  btn._bound = true;
+});
+}
+
+/* ------------------------------
+   KEYBOARD CONTROLS
+------------------------------ */
+var keyboardState = {};
+
+function setupKeyboardControls() {
+  if (window._keyboardSetup) return;
+  window._keyboardSetup = true;
+
+  document.addEventListener('keydown', function(e) {
+    if (gameState.countdownActive || !gameState.raceStarted || gameState.raceFinished) return;
+    
+    var myPlayerId = null;
+    for (var pid in gameState.players) {
+      if (gameState.players[pid].socketId === socket.id) {
+        myPlayerId = pid;
+        break;
+      }
+    }
+    if (!myPlayerId) return;
+
+    var key = e.key.toLowerCase();
+    var side = null;
+    if (key === 'a' || key === 'arrowleft') {
+      side = 'L';
+    } else if (key === 'd' || key === 'arrowright') {
+      side = 'R';
+    }
+    
+    if (!side) return;
+    if (keyboardState[side]) return;
+    keyboardState[side] = true;
+    
+    e.preventDefault();
+    
+    if (typeof defenseSystem !== 'undefined') {
+      defenseSystem.registerPress(myPlayerId, side);
+      
+      if (keyboardState.L && keyboardState.R) {
+        console.log('Both keys pressed via keyboard');
+        return;
+      }
+    }
+    
+    if (playerStates[myPlayerId] && playerStates[myPlayerId].tapsBlocked) {
+      console.log('Taps blocked by power-up!');
+      return;
+    }
+    
+    var currentPos = gameState.positions[myPlayerId] || 20;
+    var predictedMovement = 10 * SPEED_MULTIPLIER;
+    var newPosition = currentPos + predictedMovement;
+    
+    gameState.positions[myPlayerId] = newPosition;
+    var runner = document.getElementById('runner' + myPlayerId);
+    if (runner) {
+      runner.style.left = newPosition + 'px';
+    }
+    
+    startRunnerAnimation(myPlayerId);
+    socket.emit('playerAction', { roomId: gameState.roomId, playerId: myPlayerId });
+    
+    spawnDust(myPlayerId);
+    if (sounds.initialized) sounds.playTap();
+  });
+  
+  document.addEventListener('keyup', function(e) {
+    var key = e.key.toLowerCase();
+    var side = null;
+    if (key === 'a' || key === 'arrowleft') {
+      side = 'L';
+    } else if (key === 'd' || key === 'arrowright') {
+      side = 'R';
+    }
+    
+    if (!side) return;
+    keyboardState[side] = false;
+    
+    var myPlayerId = null;
+    for (var pid in gameState.players) {
+      if (gameState.players[pid].socketId === socket.id) {
+        myPlayerId = pid;
+        break;
+      }
+    }
+    if (!myPlayerId) return;
+    
+    if (typeof defenseSystem !== 'undefined') {
+      defenseSystem.registerRelease(myPlayerId, side);
+    }
+    
+    var runner = document.getElementById('runner' + myPlayerId);
+    if (!runner) return;
+    
+    clearTimeout(runner._stopTimer);
+    runner._stopTimer = setTimeout(() => {
+      stopRunnerAnimation(myPlayerId);
+    }, 200);
   });
 }
 
-
-
-/* =========================================================
-   ENHANCED SUSHI SPRINT - Dynamic Elements & Power-ups
-   New Features:
-   - Dynamic track obstacles and speed zones
-   - Power-ups and special abilities
-   - Tokyo atmosphere effects
-   ========================================================= */
-
 /* ------------------------------
-   POWER-UP SYSTEM - FIXED
+   POWER-UP SYSTEM
 ------------------------------ */
-// IMPROVED POWER-UP SYSTEM - Replace your existing powerUpSystem object
-
-// REBALANCED POWER-UPS in your powerUpSystem object
 var powerUpSystem = {
   types: {
     WASABI_RUSH: { 
       id: 'wasabi', 
-      name: 'WASABI RUSH!', 
+      name: 'WASABI RUSH', 
       color: '#00FF88', 
       icon: '🔥',
       duration: 3000,
-      effect: 'speedBoost'
+      effect: 'speedBoost',
+      description: 'SPEED BOOST'
     },
     SOY_TRAP: { 
       id: 'soy', 
@@ -519,106 +697,185 @@ var powerUpSystem = {
       color: '#8B4513', 
       icon: '🍶',
       duration: 2000,
-      effect: 'slowOpponents'
+      effect: 'slowOpponents',
+      description: 'ATTACK ALL'
     },
-    DASH_ROLL: {  // Renamed from TELEPORT_ROLL
+    DASH_ROLL: {
       id: 'dash', 
-      name: 'DASH!', 
+      name: 'DASH', 
       color: '#FF00FF', 
       icon: '⚡',
       duration: 500,
-      effect: 'instantForward'
+      effect: 'instantForward',
+      description: 'BURST DASH'
     },
     MEGA_BOOST: { 
       id: 'mega', 
-      name: 'MEGA BOOST!', 
+      name: 'MEGA BOOST', 
       color: '#FFD700', 
       icon: '⭐',
       duration: 4000,
-      effect: 'megaBoost'
+      effect: 'megaBoost',
+      description: 'SUPER SPEED'
     }
   },
 
-  activePowerUps: {},
+  playerStorage: {},
+  spawnedPowerUps: [],
+  nextSpawnDistance: 400,
+  spawnInterval: 500,
 
   createPowerUp: function(type, x, y) {
     const powerUp = document.createElement('div');
     powerUp.className = 'power-up';
     powerUp.dataset.type = type.id;
+    powerUp.dataset.x = x;
     powerUp.style.left = x + 'px';
     powerUp.style.top = y + 'px';
-    powerUp.style.backgroundColor = type.color;
-    powerUp.textContent = type.icon;
+    
+    powerUp.innerHTML = `
+      <div class="powerup-icon" style="font-size: 20px; margin-bottom: 2px;">${type.icon}</div>
+      <div class="powerup-label" style="font-size: 8px; color: ${type.color}; font-weight: bold; text-shadow: 1px 1px 0 #000;">${type.name}</div>
+    `;
+    
     powerUp.style.cssText += `
       position: absolute;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
+      width: 32px;
+      height: 40px;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
-      border: 2px solid #FFD700;
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid ${type.color};
+      border-radius: 8px;
       animation: powerUpFloat 2s ease-in-out infinite;
       z-index: 10;
-      box-shadow: 0 0 10px ${type.color};
+      box-shadow: 0 0 15px ${type.color};
+      pointer-events: none;
     `;
     
     const track = document.getElementById('track');
     if (track) track.appendChild(powerUp);
+    
+    this.spawnedPowerUps.push({ element: powerUp, x: x, type: type });
     return powerUp;
   },
 
-  spawnRandomPowerUps: function() {
+  spawnFixedPowerUps: function() {
     if (!gameState.raceStarted || gameState.raceFinished) return;
     
     const track = document.getElementById('track');
     if (!track) return;
 
-    // Spawn power-up every 3-5 seconds during race
-    if (Math.random() < 0.3) {
+    let maxPosition = 0;
+    for (let pid in gameState.positions) {
+      maxPosition = Math.max(maxPosition, gameState.positions[pid] || 0);
+    }
+
+    while (this.nextSpawnDistance < maxPosition + 800) {
       const types = Object.values(this.types);
       const randomType = types[Math.floor(Math.random() * types.length)];
       
-      const x = Math.random() * (gameState.trackWidth - 100) + 50;
+      const x = this.nextSpawnDistance;
       const laneHeight = track.offsetHeight / 4;
-      const lane = Math.floor(Math.random() * 4);
-      const y = lane * laneHeight + laneHeight/2 - 12;
       
-      this.createPowerUp(randomType, x, y);
+      for (let i = 0; i < 4; i++) {
+        const y = i * laneHeight + laneHeight/2 - 20;
+        this.createPowerUp(randomType, x, y);
+      }
+      
+      this.nextSpawnDistance += this.spawnInterval;
     }
   },
 
-  checkCollisions: function(playerId) {
-    const runner = document.getElementById('runner' + playerId);
-    if (!runner) return;
+showActivationButton: function(playerId, type) {
+  const btn = document.getElementById('activatePowerUpBtn');
+  if (!btn) return;
+  
+  // Set the icon
+  btn.textContent = type.icon;
+  btn.style.display = 'flex'; // Changed from 'block'
+  
+  // Remove old listener if exists
+  if (btn._clickHandler) {
+    btn.removeEventListener('click', btn._clickHandler);
+    btn.removeEventListener('touchstart', btn._clickHandler);
+  }
+  
+  // Create new click handler
+  btn._clickHandler = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     
-    const powerUps = document.querySelectorAll('.power-up');
-    powerUps.forEach(powerUp => {
-      const runnerRect = runner.getBoundingClientRect();
-      const powerUpRect = powerUp.getBoundingClientRect();
+    // Activate the power-up
+    const stored = this.playerStorage[playerId];
+    if (stored) {
+      this.activateStoredPowerUp(playerId);
       
-      if (this.isColliding(runnerRect, powerUpRect)) {
-        const typeId = powerUp.dataset.type;
-        
-        let matchedType = null;
-        for (const [key, type] of Object.entries(this.types)) {
-          if (type.id === typeId) {
-            matchedType = type;
-            break;
-          }
-        }
-        
-        if (matchedType) {
-          this.playPowerUpSound(matchedType.effect);
-          this.createCollectionParticles(powerUpRect);
-          this.removePowerUpWithEffect(powerUp);
-          this.activatePowerUp(playerId, matchedType);
-          this.showPowerUpEffect(playerId, matchedType);
+      // Hide button
+      btn.style.display = 'none';
+      
+      // Haptic feedback
+      if (navigator.vibrate) {
+        navigator.vibrate([50, 30, 50]);
+      }
+    }
+  };
+  
+  // Add listeners for both touch and mouse
+  btn.addEventListener('click', btn._clickHandler);
+  btn.addEventListener('touchstart', btn._clickHandler, { passive: false });
+},
+
+hideActivationButton: function() {
+  const btn = document.getElementById('activatePowerUpBtn');
+  if (btn) {
+    btn.style.display = 'none';
+    if (btn._clickHandler) {
+      btn.removeEventListener('click', btn._clickHandler);
+      btn.removeEventListener('touchstart', btn._clickHandler);
+      btn._clickHandler = null;
+    }
+  }
+},
+
+checkCollisions: function(playerId) {
+  const runner = document.getElementById('runner' + playerId);
+  if (!runner) return;
+  
+  const runnerRect = runner.getBoundingClientRect();
+  
+  this.spawnedPowerUps.forEach((powerUpData, index) => {
+    const powerUp = powerUpData.element;
+    const powerUpRect = powerUp.getBoundingClientRect();
+    
+    if (this.isColliding(runnerRect, powerUpRect)) {
+      let matchedType = null;
+      for (const [key, type] of Object.entries(this.types)) {
+        if (type.id === powerUpData.type.id) {
+          matchedType = type;
+          break;
         }
       }
-    });
-  },
+      
+      if (matchedType) {
+        // ONLY store - do NOT activate
+        this.storePowerUp(playerId, matchedType);
+        
+        // Collect feedback
+        this.playPowerUpSound('collect');
+        this.createCollectionParticles(powerUpRect);
+        
+        // Remove from track
+        this.removePowerUpWithEffect(powerUp);
+        this.spawnedPowerUps.splice(index, 1);
+        
+        console.log(`Player ${playerId} collected ${matchedType.name} - press L+R to activate`);
+      }
+    }
+  });
+},
 
   isColliding: function(rect1, rect2) {
     return !(rect1.right < rect2.left || 
@@ -627,13 +884,142 @@ var powerUpSystem = {
              rect1.top > rect2.bottom);
   },
 
-  activatePowerUp: function(playerId, type) {
-    this.activePowerUps[playerId] = {
-      type: type,
-      startTime: Date.now(),
-      duration: type.duration
-    };
+storePowerUp: function(playerId, type) {
+  const player = gameState.players[playerId];
+  if (!player) {
+    console.warn(`Cannot store power-up: player ${playerId} not found`);
+    return;
+  }
 
+  this.playerStorage[playerId] = type;
+  console.log(`✓ Power-up STORED for player ${playerId}:`, type.name);
+
+  const runner = document.getElementById('runner' + playerId);
+  if (runner) {
+    let icon = runner.querySelector('.stored-icon');
+    if (!icon) {
+      icon = document.createElement('div');
+      icon.className = 'stored-icon';
+      icon.style.cssText = `
+        position: absolute;
+        top: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 24px;
+        height: 24px;
+        font-size: 20px;
+        z-index: 100;
+      `;
+      runner.appendChild(icon);
+    }
+    icon.textContent = type.icon;
+  }
+
+  if (!player.isBot && player.socketId === socket.id) {
+    this.showActivationButton(playerId, type);
+    this.showCollectionFeedback(type);
+  }
+
+  console.log(`→ Tap the glowing button to activate!`);
+},
+
+
+
+
+  showCollectionFeedback: function(type) {
+    const feedback = document.createElement('div');
+    feedback.className = 'collection-feedback';
+    feedback.innerHTML = `
+      <div style="font-size: 2rem;">${type.icon}</div>
+      <div style="font-size: 1rem; color: ${type.color}; margin-top: 8px;">COLLECTED!</div>
+      <div style="font-size: 0.7rem; color: #FFD700; margin-top: 4px;">→ STORED →</div>
+    `;
+    feedback.style.cssText = `
+      position: fixed;
+      top: 35%;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      z-index: 9999;
+      animation: collectionFeedbackPop 1s ease-out forwards;
+      pointer-events: none;
+      font-family: 'Press Start 2P', monospace;
+      text-shadow: 2px 2px 0 #000;
+    `;
+    
+    document.body.appendChild(feedback);
+    setTimeout(() => feedback.remove(), 1000);
+  },
+
+activateStoredPowerUp: function(playerId) {
+  console.log('Attempting to activate power-up for player', playerId);
+
+  const stored = this.playerStorage[playerId];
+  if (!stored) {
+    console.log('No power-up found in storage for player', playerId);
+    return false;
+  }
+
+  console.log('Activating power-up:', stored.name);
+
+  const player = gameState.players[playerId];
+  if (!player) return false;
+
+  // Apply effect
+  this.activatePowerUpEffect(playerId, stored);
+
+  // Feedback (only for the local player)
+  if (!player.isBot && player.socketId === socket.id) {
+    this.showActivationFeedback(stored.name, stored.color);
+    this.hideActivationButton(); // Hide the button
+  }
+
+  // Remove from storage
+  delete this.playerStorage[playerId];
+  // this.updateStorageUI(playerId);
+
+  // Remove icon above runner
+  const runner = document.getElementById('runner' + playerId);
+  if (runner) {
+    const icon = runner.querySelector('.stored-icon');
+    if (icon) icon.remove();
+  }
+
+  return true;
+},
+
+
+
+  showActivationFeedback: function(text, color) {
+    const feedback = document.createElement('div');
+    feedback.innerHTML = `
+      <div style="font-size: 3rem; margin-bottom: 10px;">⚡</div>
+      <div style="font-size: 1.8rem; color: ${color};">${text}</div>
+      <div style="font-size: 1rem; color: #FFD700; margin-top: 8px;">ACTIVATED!</div>
+    `;
+    feedback.style.cssText = `
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      font-family: 'Press Start 2P', monospace;
+      text-shadow: 4px 4px 0 #000;
+      z-index: 10000;
+      animation: activationFeedbackPop 1.5s ease-out forwards;
+      pointer-events: none;
+      background: rgba(0, 0, 0, 0.9);
+      padding: 30px 40px;
+      border: 4px solid ${color};
+      border-radius: 15px;
+      box-shadow: 0 0 40px ${color};
+    `;
+    
+    document.body.appendChild(feedback);
+    setTimeout(() => feedback.remove(), 1500);
+  },
+
+  activatePowerUpEffect: function(playerId, type) {
     switch(type.effect) {
       case 'speedBoost':
         this.applySpeedBoost(playerId);
@@ -649,25 +1035,18 @@ var powerUpSystem = {
         break;
     }
 
-     // Crowd reacts to power-up
-  if (typeof crowdSystem !== 'undefined') {
-    crowdSystem.onPowerUp(playerId);
-  }
-
-    // Remove power-up after duration
-    setTimeout(() => {
-      delete this.activePowerUps[playerId];
-      this.removePowerUpEffects(playerId);
-    }, type.duration);
+    if (typeof crowdSystem !== 'undefined') {
+      crowdSystem.onPowerUp(playerId);
+    }
   },
 
   applySpeedBoost: function(playerId) {
     const runner = document.getElementById('runner' + playerId);
     if (runner) {
       runner.classList.add('speed-boost');
+      setTimeout(() => runner.classList.remove('speed-boost'), 3000);
     }
     
-    // Actually boost: send rapid taps
     let tapCount = 0;
     const boostInterval = setInterval(() => {
       if (tapCount >= 8 || !gameState.raceStarted || gameState.finishTimes[playerId]) {
@@ -676,16 +1055,16 @@ var powerUpSystem = {
       }
       socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
       tapCount++;
-    }, 350); // One tap every 350ms for 3 seconds = ~8 taps
+    }, 350);
   },
 
   applyMegaBoost: function(playerId) {
     const runner = document.getElementById('runner' + playerId);
     if (runner) {
       runner.classList.add('mega-boost');
+      setTimeout(() => runner.classList.remove('mega-boost'), 4000);
     }
     
-    // MEGA boost: more taps, faster
     let tapCount = 0;
     const boostInterval = setInterval(() => {
       if (tapCount >= 15 || !gameState.raceStarted || gameState.finishTimes[playerId]) {
@@ -694,19 +1073,38 @@ var powerUpSystem = {
       }
       socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
       tapCount++;
-    }, 250); // One tap every 250ms for 4 seconds = ~15 taps
+    }, 250);
   },
 
-slowOpponents: function(playerId) {
-  // If a bot collected this, don't attack human players
-  const collector = gameState.players[playerId];
-  if (collector && collector.isBot) {
-    // Bots only slow down other bots, not humans
+  slowOpponents: function(playerId) {
+    const collector = gameState.players[playerId];
+    if (collector && collector.isBot) {
+      Object.keys(gameState.players).forEach(pid => {
+        if (pid != playerId) {
+          const target = gameState.players[pid];
+          if (target && target.isBot) {
+            const runner = document.getElementById('runner' + pid);
+            if (runner) {
+              runner.classList.add('slowed');
+              if (!playerStates[pid]) playerStates[pid] = {};
+              playerStates[pid].tapsBlocked = true;
+            }
+            
+            setTimeout(() => {
+              if (runner) runner.classList.remove('slowed');
+              if (playerStates[pid]) playerStates[pid].tapsBlocked = false;
+            }, 2000);
+          }
+        }
+      });
+      return;
+    }
+    
     Object.keys(gameState.players).forEach(pid => {
       if (pid != playerId) {
-        const target = gameState.players[pid];
-        if (target && target.isBot) {
-          // Apply slow effect directly to other bots
+        if (typeof defenseSystem !== 'undefined') {
+          defenseSystem.initiateAttack(pid, 'soy_trap', 2000);
+        } else {
           const runner = document.getElementById('runner' + pid);
           if (runner) {
             runner.classList.add('slowed');
@@ -721,113 +1119,17 @@ slowOpponents: function(playerId) {
         }
       }
     });
-    return;
-  }
-  
-  // Human player collected it - use defense system for all opponents
-  Object.keys(gameState.players).forEach(pid => {
-    if (pid != playerId) {
-      if (typeof defenseSystem !== 'undefined') {
-        defenseSystem.initiateAttack(pid, 'soy_trap', 2000);
-      } else {
-        // Fallback if defense system not loaded
-        const runner = document.getElementById('runner' + pid);
-        if (runner) {
-          runner.classList.add('slowed');
-          if (!playerStates[pid]) playerStates[pid] = {};
-          playerStates[pid].tapsBlocked = true;
-        }
-        
-        setTimeout(() => {
-          if (runner) runner.classList.remove('slowed');
-          if (playerStates[pid]) playerStates[pid].tapsBlocked = false;
-        }, 2000);
-      }
-    }
-  });
-},
-
- instantForward: function(playerId) {
-  // Reduced from 10 to 5 taps, still powerful but not game-breaking
-  for (let i = 0; i < 5; i++) {
-    setTimeout(() => {
-      socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
-    }, i * 50);
-  }
-    
-    // Visual effect
-    if (typeof kanjiEffects !== 'undefined') {
-      kanjiEffects.showKanji('power', playerId);
-    }
   },
 
-  removePowerUpEffects: function(playerId) {
-    const runner = document.getElementById('runner' + playerId);
-    if (runner) {
-      runner.classList.remove('speed-boost', 'mega-boost', 'shielded');
-    }
-  },
-
-showPowerUpEffect: function(playerId, type) {
-  const player = gameState.players[playerId];
-  
-  // ONLY show for the human player (not bots, not other human players)
-  if (!player) return;
-  if (player.isBot) return;
-  
-  // Check if this is the local player
-  const isLocalPlayer = player.socketId === socket.id;
-  
-  // If not the local player, don't show anything
-  if (!isLocalPlayer) return;
-  
-  // Only show kanji for local player - ONCE
-  if (isLocalPlayer && typeof kanjiEffects !== 'undefined') {
-    // Determine kanji type based on power-up effect
-    let kanjiType = null;
-    if (type.effect === 'speedBoost' || type.effect === 'megaBoost') {
-      kanjiType = 'speed';
-    } else if (type.effect === 'instantForward') {
-      kanjiType = 'power';
-    } else if (type.effect === 'slowOpponents') {
-      kanjiType = 'power';
-    }
-    
-    // Show kanji ONCE with English name underneath
-    if (kanjiType) {
-      const char = kanjiEffects.characters[kanjiType];
-      const kanji = document.createElement('div');
-      kanji.className = 'kanji-effect';
-      kanji.innerHTML = `
-        <div class="kanji-main" style="font-size: 4rem; color: ${type.color}; text-shadow: 4px 4px 0 #000, -3px -3px 0 #000; margin-bottom: 8px; font-family: 'Noto Sans JP', serif;">${char.kanji}</div>
-        <div class="kanji-meaning" style="font-size: 0.9rem; color: ${type.color}; font-family: 'Press Start 2P', monospace; text-shadow: 2px 2px 0 #000; letter-spacing: 2px;">${type.name}</div>
-      `;
-      
-      // CENTER SCREEN positioning
-      kanji.style.cssText = `
-        position: fixed;
-        top: 35%;
-        left: 50%;
-        transform: translateX(-50%);
-        text-align: center;
-        z-index: 9999;
-        animation: kanjiGlobalPop 2.5s ease-out forwards;
-        pointer-events: none;
-      `;
-      
-      document.body.appendChild(kanji);
-      
-      // Clean up after animation
+  instantForward: function(playerId) {
+    for (let i = 0; i < 10; i++) {
       setTimeout(() => {
-        if (kanji && kanji.parentElement) {
-          kanji.remove();
-        }
-      }, 2500);
+        socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
+      }, i * 20);
     }
-  }
-},
+  },
+
   createCollectionParticles: function(rect) {
-    // Create burst particles at collection point
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     
@@ -848,7 +1150,7 @@ showPowerUpEffect: function(playerId, type) {
     }
   },
 
-  playPowerUpSound: function(effectType) {
+  playPowerUpSound: function(soundType) {
     if (!audioCtx) return;
     
     try {
@@ -858,23 +1160,18 @@ showPowerUpEffect: function(playerId, type) {
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
       
-      let frequency = 500;
-      switch(effectType) {
-        case 'speedBoost': frequency = 800; break;
-        case 'megaBoost': frequency = 1000; break;
-        case 'slowOpponents': frequency = 200; break;
-        case 'instantForward': frequency = 1200; break;
+      if (soundType === 'collect') {
+        oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.15);
       }
       
-      oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
       oscillator.type = 'square';
-      
       gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
       gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
       
       oscillator.start(audioCtx.currentTime);
-      oscillator.stop(audioCtx.currentTime + 0.3);
+      oscillator.stop(audioCtx.currentTime + 0.2);
     } catch(e) {
       console.warn("Power-up sound failed:", e);
     }
@@ -889,11 +1186,24 @@ showPowerUpEffect: function(playerId, type) {
         powerUp.remove();
       }
     }, 300);
+  },
+
+  reset: function() {
+    this.playerStorage = {};
+    this.spawnedPowerUps = [];
+    this.nextSpawnDistance = 600;
+    
+    document.querySelectorAll('.power-up').forEach(el => el.remove());
+    
+    const container = document.getElementById('powerUpStorage');
+    if (container) container.style.display = 'none';
+
+    this.hideActivationButton(); // Add this line
   }
 };
 
 /* ------------------------------
-   DYNAMIC TRACK ELEMENTS
+   TRACK ELEMENTS
 ------------------------------ */
 var trackElements = {
   obstacles: [],
@@ -904,19 +1214,10 @@ var trackElements = {
     obstacle.className = 'track-obstacle ' + type;
     obstacle.style.left = x + 'px';
     
-    const laneHeight = 80; // approximate lane height
+    const laneHeight = 80;
     obstacle.style.top = (lane * laneHeight + laneHeight/2 - 16) + 'px';
     
     switch(type) {
-      case 'chopsticks':
-        obstacle.textContent = '🥢';
-        obstacle.style.cssText += `
-          width: 32px;
-          height: 32px;
-          font-size: 24px;
-          animation: chopstickSway 1s ease-in-out infinite;
-        `;
-        break;
       case 'soy-spill':
         obstacle.textContent = '🌊';
         obstacle.style.cssText += `
@@ -972,14 +1273,12 @@ var trackElements = {
   spawnRandomElements: function() {
     if (!gameState.raceStarted || gameState.raceFinished) return;
     
-    // Remove chopsticks - only spawn soy spills now
-    if (Math.random() < 0.15) {  // Reduced frequency since only one obstacle type
+    if (Math.random() < 0.15) {
       const x = Math.random() * (gameState.trackWidth - 200) + 100;
       const lane = Math.floor(Math.random() * 4);
-      this.createObstacle('soy-spill', x, lane);  // Always soy-spill
+      this.createObstacle('soy-spill', x, lane);
     }
     
-    // Keep speed zones as they are
     if (Math.random() < 0.15) {
       const x = Math.random() * (gameState.trackWidth - 300) + 150;
       const width = 80 + Math.random() * 60;
@@ -988,107 +1287,95 @@ var trackElements = {
     }
   },
 
-checkCollisions: function(playerId) {
-  const runner = document.getElementById('runner' + playerId);
-  if (!runner) return;
-  
-  const runnerRect = runner.getBoundingClientRect();
-  const player = gameState.players[playerId];
-  
-  // Check speed zones
-  this.speedZones.forEach(zone => {
-    const zoneRect = zone.element.getBoundingClientRect();
-    if (powerUpSystem.isColliding(runnerRect, zoneRect)) {
-      this.triggerSpeedZone(playerId);
-      
-      // Only show effect for local player, not bots or other players
-      if (player && !player.isBot && player.socketId === socket.id) {
-        this.showSpeedZoneEffect(runner);
+  checkCollisions: function(playerId) {
+    const runner = document.getElementById('runner' + playerId);
+    if (!runner) return;
+    
+    const runnerRect = runner.getBoundingClientRect();
+    const player = gameState.players[playerId];
+    
+    this.speedZones.forEach(zone => {
+      const zoneRect = zone.element.getBoundingClientRect();
+      if (powerUpSystem.isColliding(runnerRect, zoneRect)) {
+        this.triggerSpeedZone(playerId);
+        
+        if (player && !player.isBot && player.socketId === socket.id) {
+          this.showSpeedZoneEffect(runner);
+        }
       }
-    }
-  });
-  
-  // Check obstacles
-  this.obstacles.forEach(obstacle => {
-    const obstacleRect = obstacle.element.getBoundingClientRect();
-    if (powerUpSystem.isColliding(runnerRect, obstacleRect)) {
-      this.triggerObstacle(playerId, obstacle.type);
-    }
-  });
-},
+    });
+    
+    this.obstacles.forEach(obstacle => {
+      const obstacleRect = obstacle.element.getBoundingClientRect();
+      if (powerUpSystem.isColliding(runnerRect, obstacleRect)) {
+        this.triggerObstacle(playerId, obstacle.type);
+      }
+    });
+  },
 
   triggerSpeedZone: function(playerId) {
-    // Emit extra movement for speed boost
     socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
   },
 
-triggerObstacle: function(playerId, type) {
-  switch(type) {
-    case 'soy-spill':
-      // Slow down effect
-      const runner = document.getElementById('runner' + playerId);
-      const player = gameState.players[playerId];
-      
-      // Don't show effects for bots
-      if (player && player.isBot) {
-        // Just apply the effect without visuals
+  triggerObstacle: function(playerId, type) {
+    switch(type) {
+      case 'soy-spill':
+        const runner = document.getElementById('runner' + playerId);
+        const player = gameState.players[playerId];
+        
+        if (player && player.isBot) {
+          if (runner) {
+            runner.classList.add('slowed');
+            setTimeout(() => runner.classList.remove('slowed'), 1500);
+          }
+          return;
+        }
+        
+        const isLocalPlayer = player && player.socketId === socket.id;
+        
         if (runner) {
           runner.classList.add('slowed');
+          
+          if (isLocalPlayer && typeof kanjiEffects !== 'undefined') {
+            kanjiEffects.showKanji('slow', playerId);
+          }
+          
           setTimeout(() => runner.classList.remove('slowed'), 1500);
         }
-        return;
-      }
-      
-      // Only show kanji for local player
-      const isLocalPlayer = player && player.socketId === socket.id;
-      
-      if (runner) {
-        runner.classList.add('slowed');
-        
-        // Only show kanji for local player
-        if (isLocalPlayer && typeof kanjiEffects !== 'undefined') {
-          kanjiEffects.showKanji('slow', playerId);
-        }
-        
-        setTimeout(() => runner.classList.remove('slowed'), 1500);
-      }
-      break;
-  }
-},
+        break;
+    }
+  },
 
-showSpeedZoneEffect: function(runner) {
-  // Check if this is the local player's runner
-  const playerId = runner.id.replace('runner', '');
-  const player = gameState.players[playerId];
-  
-  // Don't show for bots
-  if (player && player.isBot) return;
-  
-  // Only show for local player
-  const isLocalPlayer = player && player.socketId === socket.id;
-  if (!isLocalPlayer) return;
-  
-  const effect = document.createElement('div');
-  effect.textContent = 'WASABI BOOST!';
-  effect.style.cssText = `
-    position: absolute;
-    top: -25px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #00FF88;
-    font-weight: bold;
-    font-size: 10px;
-    animation: speedBoostText 1s ease-out forwards;
-    z-index: 100;
-  `;
-  
-  runner.appendChild(effect);
-  setTimeout(() => effect.remove(), 1000);
-  
-  if (playerId && typeof kanjiEffects !== 'undefined') {
-    kanjiEffects.showKanji('boost', playerId);
-  }
-},
+  showSpeedZoneEffect: function(runner) {
+    const playerId = runner.id.replace('runner', '');
+    const player = gameState.players[playerId];
+    
+    if (player && player.isBot) return;
+    
+    const isLocalPlayer = player && player.socketId === socket.id;
+    if (!isLocalPlayer) return;
+    
+    const effect = document.createElement('div');
+    effect.textContent = 'WASABI BOOST!';
+    effect.style.cssText = `
+      position: absolute;
+      top: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #00FF88;
+      font-weight: bold;
+      font-size: 10px;
+      animation: speedBoostText 1s ease-out forwards;
+      z-index: 100;
+    `;
+    
+    runner.appendChild(effect);
+    setTimeout(() => effect.remove(), 1000);
+    
+    if (playerId && typeof kanjiEffects !== 'undefined') {
+      kanjiEffects.showKanji('boost', playerId);
+    }
+  },
 
   clearElements: function() {
     document.querySelectorAll('.track-obstacle, .speed-zone, .power-up').forEach(el => el.remove());
@@ -1098,7 +1385,7 @@ showSpeedZoneEffect: function(runner) {
 };
 
 /* ------------------------------
-   TOKYO ATMOSPHERE EFFECTS
+   TOKYO ATMOSPHERE
 ------------------------------ */
 var tokyoAtmosphere = {
   cherryBlossoms: [],
@@ -1112,7 +1399,6 @@ var tokyoAtmosphere = {
   },
 
   createCherryBlossom: function() {
-    // Use the full viewport instead of just the track container
     const blossom = document.createElement('div');
     blossom.className = 'cherry-blossom';
     blossom.textContent = '🌸';
@@ -1126,14 +1412,11 @@ var tokyoAtmosphere = {
       animation: cherryFallFullScreen ${4 + Math.random() * 3}s linear forwards;
     `;
     
-    // Append to body instead of track container
     document.body.appendChild(blossom);
-    
     setTimeout(() => blossom.remove(), 7000);
   },
 
   addTokyoSounds: function() {
-    // Add these to your sound system
     const tokyoSounds = {
       crowd_cheer: new Audio("sounds/tokyo_crowd.wav"),
       train_pass: new Audio("sounds/subway_train.wav"),
@@ -1145,7 +1428,6 @@ var tokyoAtmosphere = {
       sounds.sfx[key] = tokyoSounds[key];
     });
     
-    // Play crowd cheers randomly during race
     if (gameState.raceStarted && !gameState.raceFinished) {
       if (Math.random() < 0.1) {
         try {
@@ -1188,21 +1470,17 @@ var tokyoAtmosphere = {
   }
 };
 
-/* Continue with the rest of your game.js code... */
-
 /* ------------------------------
-   2) GRAPHICS / SPRITES
+   GRAPHICS / SPRITES
 ------------------------------ */
 var gameGraphics = {
   characters: {
-    1: { frames: [], loaded: false }, // Tamago
-    2: { frames: [], loaded: false }, // Salmon
-    3: { frames: [], loaded: false }, // Maki
-    4: { frames: [], loaded: false }  // Maguro
+    1: { frames: [], loaded: false },
+    2: { frames: [], loaded: false },
+    3: { frames: [], loaded: false },
+    4: { frames: [], loaded: false }
   },
 
-  
-  // ADD THIS NEW METHOD HERE:
   preloadImages: function(playerId) {
     var character = this.characters[playerId];
     if (!character || !character.frames) return;
@@ -1213,48 +1491,41 @@ var gameGraphics = {
     });
   },
 
-  // UPDATE THIS EXISTING METHOD:
-// In your gameGraphics object, REPLACE the existing loadCharacterFrames method:
+  loadCharacterFrames: function(characterId, frameUrls) {
+    if (!this.characters[characterId]) return false;
+    
+    this.characters[characterId].frames = frameUrls.slice();
+    this.characters[characterId].loaded = false;
+    
+    var loadedCount = 0;
+    var totalImages = frameUrls.length;
+    
+    frameUrls.forEach(function(url) {
+      var img = new Image();
+      img.onload = function() {
+        loadedCount++;
+        console.log(`Loaded sprite ${loadedCount}/${totalImages}: ${url}`);
+        
+        if (loadedCount === totalImages) {
+          gameGraphics.characters[characterId].loaded = true;
+          console.log(`Character ${characterId} fully loaded`);
+          gameGraphics.updateRunnerSprite(characterId);
+        }
+      };
+      img.onerror = function() {
+        console.error(`Failed to load sprite: ${url}`);
+        loadedCount++;
+        if (loadedCount === totalImages) {
+          gameGraphics.characters[characterId].loaded = true;
+          gameGraphics.updateRunnerSprite(characterId);
+        }
+      };
+      img.src = url;
+    });
+    
+    return true;
+  },
 
-loadCharacterFrames: function(characterId, frameUrls) {
-  if (!this.characters[characterId]) return false;
-  
-  this.characters[characterId].frames = frameUrls.slice();
-  this.characters[characterId].loaded = false; // Set to false initially
-  
-  // Preload all images and wait for them to load
-  var loadedCount = 0;
-  var totalImages = frameUrls.length;
-  
-  frameUrls.forEach(function(url) {
-    var img = new Image();
-    img.onload = function() {
-      loadedCount++;
-      console.log(`Loaded sprite ${loadedCount}/${totalImages}: ${url}`);
-      
-      // When all images are loaded, mark as ready and update sprite
-      if (loadedCount === totalImages) {
-        gameGraphics.characters[characterId].loaded = true;
-        console.log(`Character ${characterId} fully loaded`);
-        gameGraphics.updateRunnerSprite(characterId);
-      }
-    };
-    img.onerror = function() {
-      console.error(`Failed to load sprite: ${url}`);
-      loadedCount++; // Still increment to prevent hanging
-      if (loadedCount === totalImages) {
-        gameGraphics.characters[characterId].loaded = true;
-        gameGraphics.updateRunnerSprite(characterId);
-      }
-    };
-    img.src = url;
-  });
-  
-  return true;
-},
-
-// Remove the old preloadImages method if it's separate
-  // Tamago
   loadCharacter1Frames: function() {
     return this.loadCharacterFrames(1, [
       "images/tamago_nigri_1.png",
@@ -1264,7 +1535,6 @@ loadCharacterFrames: function(characterId, frameUrls) {
     ]);
   },
 
-  // Salmon
   loadCharacter2Frames: function() {
     return this.loadCharacterFrames(2, [
       "images/salmon_nigiri_1.png",
@@ -1274,7 +1544,6 @@ loadCharacterFrames: function(characterId, frameUrls) {
     ]);
   },
 
-  // Maki
   loadCharacter3Frames: function() {
     return this.loadCharacterFrames(3, [
       "images/maki_roll_1.png",
@@ -1284,7 +1553,6 @@ loadCharacterFrames: function(characterId, frameUrls) {
     ]);
   },
 
-  // Maguro (Tuna)
   loadCharacter4Frames: function() {
     return this.loadCharacterFrames(4, [
       "images/tuna_sushi_1.png",
@@ -1301,53 +1569,51 @@ loadCharacterFrames: function(characterId, frameUrls) {
     this.loadCharacter4Frames();
   },
 
-  // Apply first sprite frame + store frames on element for animation
-updateRunnerSprite: function(playerId) {
-  var runner = document.getElementById('runner' + playerId);
-  if (!runner) {
-    console.log('No runner element for player', playerId);
-    return;
+  updateRunnerSprite: function(playerId) {
+    var runner = document.getElementById('runner' + playerId);
+    if (!runner) {
+      console.log('No runner element for player', playerId);
+      return;
+    }
+
+    var character = this.characters[playerId];
+    if (!character || !character.loaded || character.frames.length === 0) {
+      console.log('Character not ready for player', playerId, character);
+      return;
+    }
+
+    runner.style.width = '32px';
+    runner.style.height = '32px';
+    runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
+    runner.style.backgroundSize = 'cover';
+    runner.style.backgroundRepeat = 'no-repeat';
+    runner.textContent = '';
+    runner.innerHTML = '';
+    runner.dataset.frames = JSON.stringify(character.frames);
+    runner.dataset.currentFrame = '0';
+    
+    console.log('Sprite updated for player', playerId, 'frame:', character.frames[0]);
+  },
+
+  animateSprite: function(playerId) {
+    var runner = document.getElementById('runner' + playerId);
+    if (!runner || !runner.dataset.frames) {
+      console.log('Cannot animate player', playerId, 'no frames');
+      return;
+    }
+
+    var frames = JSON.parse(runner.dataset.frames);
+    var currentFrame = parseInt(runner.dataset.currentFrame || '0', 10);
+    var nextFrame = (currentFrame + 1) % frames.length;
+
+    console.log('Animating player', playerId, 'to frame', nextFrame, frames[nextFrame]);
+    runner.style.backgroundImage = 'url(' + frames[nextFrame] + ')';
+    runner.dataset.currentFrame = String(nextFrame);
   }
-
-  var character = this.characters[playerId];
-  if (!character || !character.loaded || character.frames.length === 0) {
-    console.log('Character not ready for player', playerId, character);
-    return;
-  }
-
-  runner.style.width = '32px';
-  runner.style.height = '32px';
-  runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
-  runner.style.backgroundSize = 'cover';
-  runner.style.backgroundRepeat = 'no-repeat';
-  runner.textContent = '';
-  runner.innerHTML = '';
-  runner.dataset.frames = JSON.stringify(character.frames);
-  runner.dataset.currentFrame = '0';
-  
-  console.log('Sprite updated for player', playerId, 'frame:', character.frames[0]);
-},
-
-  // Advance to next frame (used while "running")
-animateSprite: function(playerId) {
-  var runner = document.getElementById('runner' + playerId);
-  if (!runner || !runner.dataset.frames) {
-    console.log('Cannot animate player', playerId, 'no frames');
-    return;
-  }
-
-  var frames = JSON.parse(runner.dataset.frames);
-  var currentFrame = parseInt(runner.dataset.currentFrame || '0', 10);
-  var nextFrame = (currentFrame + 1) % frames.length;
-
-  console.log('Animating player', playerId, 'to frame', nextFrame, frames[nextFrame]);
-  runner.style.backgroundImage = 'url(' + frames[nextFrame] + ')';
-  runner.dataset.currentFrame = String(nextFrame);
-}
 };
 
 /* ------------------------------
-   3) CONFETTI / VISUAL EFFECTS
+   CONFETTI
 ------------------------------ */
 function launchTickerTape() {
   const container = document.querySelector('.track-container');
@@ -1387,15 +1653,8 @@ function launchTickerTape() {
 }
 
 /* ------------------------------
-/* =========================================================
-   SOUND SYSTEM FIX - Key Changes:
-   1. Better Web Audio initialization with mobile handling
-   2. Robust fallback to HTML5 Audio
-   3. Proper error handling and logging
-   4. User interaction detection for autoplay restrictions
-   ========================================================= */
-
-// ---- WEB AUDIO SYSTEM (IMPROVED) ----
+   SOUND SYSTEM
+------------------------------ */
 let audioCtx;
 let tapBuffer = null;
 let audioInitialized = false;
@@ -1411,7 +1670,6 @@ async function initWebAudio() {
       console.log("AudioContext created, state:", audioCtx.state);
     }
     
-    // Resume if suspended (critical for mobile)
     if (audioCtx.state === 'suspended') {
       await audioCtx.resume();
       console.log("AudioContext resumed, new state:", audioCtx.state);
@@ -1443,7 +1701,6 @@ function playTapWeb() {
   }
   
   try {
-    // Resume context if needed (mobile browsers suspend it)
     if (audioCtx.state === 'suspended') {
       audioCtx.resume().then(() => {
         playTapWebInternal();
@@ -1479,7 +1736,6 @@ function playStartSound() {
   }
   
   try {
-    // Resume if suspended
     if (audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
@@ -1516,7 +1772,6 @@ function playStartSound() {
   }
 }
 
-// ---- HTML5 AUDIO FALLBACK (IMPROVED) ----
 var sounds = {
   initialized: false,
   sfx: {},
@@ -1557,7 +1812,6 @@ function initSounds() {
       var a = new Audio(files[k]);
       a.preload = 'auto';
       
-      // Add load event listener
       a.addEventListener('canplaythrough', function() {
         console.log(`Sound ${k} loaded successfully`);
       });
@@ -1576,7 +1830,6 @@ function initSounds() {
     }
   });
 
-  // Sound player functions with better error handling
   sounds.playCountdown = function(){ 
     try { 
       if (sounds.sfx.countdown) {
@@ -1614,11 +1867,9 @@ function initSounds() {
   };
 
   sounds.playTap = function() {
-    // Try Web Audio first (lower latency)
     if (audioInitialized && tapBuffer && audioCtx) {
       playTapWeb();
     } else if (sounds.sfx.tap) {
-      // Fallback to HTML5 Audio
       try {
         const clone = sounds.sfx.tap.cloneNode();
         clone.volume = 0.8;
@@ -1672,7 +1923,6 @@ function initSounds() {
   console.log("HTML5 Audio sounds initialized");
 }
 
-// ---- INITIALIZATION (CRITICAL FOR MOBILE) ----
 function setupAudioOnInteraction() {
   console.log("Setting up audio initialization on user interaction...");
   
@@ -1682,51 +1932,37 @@ function setupAudioOnInteraction() {
     initWebAudio();
   }
   
-  // Listen for various user interactions
   document.addEventListener('click', initAllAudio, { once: true });
   document.addEventListener('touchstart', initAllAudio, { once: true });
   document.addEventListener('touchend', initAllAudio, { once: true });
   
-  // Also try on button clicks
   const joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn) {
     joinBtn.addEventListener('click', initAllAudio, { once: true });
   }
 }
 
-// Call this early
 setupAudioOnInteraction();
 
-
-/* =========================================================
-   CROWD ATMOSPHERE SYSTEM
-   Features:
-   - Ambient crowd murmur (continuous background)
-   - Reactive cheering (responds to race events)
-   - Position-based excitement (louder when close finishes)
-   - Victory roar (massive cheer for winner)
-   - Individual cheers for overtakes and power-ups
-   ========================================================= */
-
+/* ------------------------------
+   CROWD SYSTEM
+------------------------------ */
 var crowdSystem = {
   ambientSound: null,
   cheerSounds: [],
   isInitialized: false,
   currentExcitementLevel: 0,
   
-  // Initialize crowd audio system
   init: function() {
     if (this.isInitialized) return;
     
     console.log("Initializing crowd atmosphere system...");
     
-    // Create ambient crowd murmur (looping background)
     this.ambientSound = new Audio("sounds/crowd_ambient.mp3");
     this.ambientSound.loop = true;
     this.ambientSound.volume = 0;
     this.ambientSound.preload = 'auto';
     
-    // Create multiple cheer sounds for variety
     const cheerFiles = [
       "sounds/crowd_cheer_1.mp3",
       "sounds/crowd_cheer_2.mp3", 
@@ -1744,12 +1980,10 @@ var crowdSystem = {
     console.log("Crowd system initialized");
   },
   
-  // Start ambient crowd noise when race begins
   startAmbience: function() {
     if (!this.isInitialized) this.init();
     
     try {
-      // Fade in ambient crowd
       this.ambientSound.volume = 0;
       this.ambientSound.play().then(() => {
         this.fadeVolume(this.ambientSound, 0.25, 2000);
@@ -1762,7 +1996,6 @@ var crowdSystem = {
     }
   },
   
-  // Stop ambient noise when race ends
   stopAmbience: function(fadeTime = 1000) {
     if (!this.ambientSound) return;
     
@@ -1771,7 +2004,6 @@ var crowdSystem = {
     });
   },
   
-  // Fade audio volume smoothly
   fadeVolume: function(audio, targetVolume, duration, callback) {
     if (!audio) return;
     
@@ -1793,12 +2025,10 @@ var crowdSystem = {
     }, stepTime);
   },
   
-  // Play a random cheer sound
   playCheer: function(volume = 0.6) {
     if (!this.isInitialized || this.cheerSounds.length === 0) return;
     
     try {
-      // Pick random cheer
       const cheer = this.cheerSounds[Math.floor(Math.random() * this.cheerSounds.length)];
       const clone = cheer.cloneNode();
       clone.volume = volume;
@@ -1813,63 +2043,50 @@ var crowdSystem = {
     }
   },
   
-  // React to race start
   onRaceStart: function() {
     this.startAmbience();
     setTimeout(() => {
       this.playCheer(0.7);
-    }, 1000); // Cheer after countdown
+    }, 1000);
   },
   
-  // React to player overtake
   onOvertake: function(playerId) {
     this.playCheer(0.5);
     this.raiseExcitement(10);
   },
   
-  // React to power-up collection
   onPowerUp: function(playerId) {
     this.playCheer(0.4);
   },
   
-  // React to race finish (excitement based on how close)
   onPlayerFinish: function(playerId, position, timeDifference) {
     const baseVolume = 0.8;
     
     if (position === 1) {
-      // Winner gets huge cheer
       this.playVictoryRoar();
     } else if (timeDifference < 1.0) {
-      // Close finish = loud cheer
       this.playCheer(baseVolume);
     } else if (timeDifference < 3.0) {
-      // Normal finish
       this.playCheer(baseVolume * 0.7);
     } else {
-      // Distant finish = quieter
       this.playCheer(baseVolume * 0.4);
     }
   },
   
-  // Massive roar for winner
   playVictoryRoar: function() {
     console.log("Victory roar!");
     
-    // Increase ambient crowd volume
     this.fadeVolume(this.ambientSound, 0.5, 500);
     
-    // Play multiple cheers overlapping
     setTimeout(() => this.playCheer(0.9), 0);
     setTimeout(() => this.playCheer(0.8), 200);
     setTimeout(() => this.playCheer(0.7), 400);
     
-    // Fade back down
     setTimeout(() => {
       this.fadeVolume(this.ambientSound, 0.25, 2000);
     }, 2000);
   },
   
-  // Raise excitement level (affects ambient volume)
   raiseExcitement: function(amount) {
     this.currentExcitementLevel = Math.min(100, this.currentExcitementLevel + amount);
     
@@ -1878,27 +2095,23 @@ var crowdSystem = {
       this.fadeVolume(this.ambientSound, targetVolume, 500);
     }
     
-    // Decay excitement over time
     setTimeout(() => {
       this.currentExcitementLevel = Math.max(0, this.currentExcitementLevel - amount);
     }, 3000);
   },
   
-  // React to close racing (multiple players near each other)
   onCloseRacing: function(playerPositions) {
-    // Calculate if players are bunched up
     const positions = Object.values(playerPositions);
     if (positions.length < 2) return;
     
     const sorted = positions.sort((a, b) => b - a);
     const leadGap = sorted[0] - sorted[1];
     
-    if (leadGap < 50) { // Very close
+    if (leadGap < 50) {
       this.raiseExcitement(5);
     }
   },
   
-  // Reset for new race
   reset: function() {
     this.currentExcitementLevel = 0;
     this.stopAmbience(500);
@@ -1906,14 +2119,14 @@ var crowdSystem = {
 };
 
 /* ------------------------------
-   6) CAMERA / PARALLAX
+   CAMERA
 ------------------------------ */
 var cameraState = {
   cameraOffset: 0
 };
 
 /* ------------------------------
-   7) FINISH LINE STRIPE
+   FINISH LINE
 ------------------------------ */
 function ensureFinishLine() {
   var track = document.getElementById('track');
@@ -1931,7 +2144,7 @@ function ensureFinishLine() {
   }
 
   var isMobile = window.innerWidth <= 480;
-  var finishLineOffset = isMobile ? 150 : 200;  // Same values as checkFinish
+  var finishLineOffset = isMobile ? 150 : 200;
   var trackWidth = track.offsetWidth || gameState.trackWidth || 1500;
   var startPadding = 20;
   var finishX = trackWidth - finishLineOffset - startPadding;
@@ -1939,22 +2152,18 @@ function ensureFinishLine() {
 }
 
 /* ------------------------------
-   8) SCROLL LOCK
+   SCROLL LOCK
 ------------------------------ */
 function lockScroll(shouldLock) {
   document.body.classList.toggle('no-scroll', !!shouldLock);
 }
 
 /* ------------------------------
-   9) UI RESET HELPER
------------------------------- */
-/* ------------------------------
-   9) UI RESET HELPER (patched)
+   UI RESET
 ------------------------------ */
 function resetAllUIElements() {
   console.log('Resetting all UI elements...');
   
-  // Hide race elements
   var elements = [
     { id: 'statusBar', action: el => el.classList.remove('active') },
     { id: 'grandstand', action: el => el.classList.remove('active') },
@@ -1969,17 +2178,18 @@ function resetAllUIElements() {
     if (el) action(el);
   });
 
-  // Reset track - DON'T clear innerHTML yet, we need the lane structure
   var track = document.getElementById('track');
   if (track) {
     track.classList.remove('active');
     track.style.display = 'block';
     track.style.transform = 'translateX(0px)';
-    // Clear only dynamic elements, keep lane structure
     track.querySelectorAll('.cherry-blossom, .position-announcement, .power-up-text, .kanji-effect, .track-obstacle, .speed-zone, .power-up, .confetti-tape').forEach(el => el.remove());
   }
 
-  // Reset container
+  if (typeof powerUpSystem !== 'undefined') {
+    powerUpSystem.reset();
+  }
+
   var container = document.querySelector('.track-container');
   if (container) {
     container.classList.remove('active');
@@ -1987,25 +2197,23 @@ function resetAllUIElements() {
     container.style.transform = 'translateX(0px)';
   }
 
-  // Reset camera offset
   if (typeof cameraState !== 'undefined') {
     cameraState.cameraOffset = 0;
   }
 
-  // Reset runners but keep them in DOM
   for (var i = 1; i <= 4; i++) {
     var lane = document.getElementById('lane' + i);
     var runner = document.getElementById('runner' + i);
     var nameLabel = document.getElementById('name' + i);
     
-    if (lane) lane.style.display = 'none'; // Hide all lanes initially
+    if (lane) lane.style.display = 'none';
     
     if (runner) {
       runner.style.left = '20px';
       runner.classList.remove('running', 'active', 'winner', 'bot-runner', 'speed-boost', 'slowed', 'shielded');
-      runner.style.backgroundImage = ''; // Clear background
-      runner.textContent = ''; // Clear any text
-      runner.innerHTML = ''; // Clear any HTML
+      runner.style.backgroundImage = '';
+      runner.textContent = '';
+      runner.innerHTML = '';
       if (runner.dataset.frames) {
         delete runner.dataset.frames;
         delete runner.dataset.currentFrame;
@@ -2018,7 +2226,6 @@ function resetAllUIElements() {
     }
   }
 
-  // Reset state flags BEFORE setupLanes is called elsewhere
   gameState.raceStarted = false;
   gameState.raceFinished = false;
   gameState.positions = {};
@@ -2028,22 +2235,15 @@ function resetAllUIElements() {
   gameState.isResetting = false;
   playerStates = {};
 
-  // Re-lock scroll for lobby
   lockScroll(true);
-
-  // Rebuild finish line
   ensureFinishLine();
-
-  // Reload all sprites so they're ready when players join
   gameGraphics.loadAllSushiCharacters();
 
-  // Show lobby again
   var lobby = document.getElementById('lobby');
   if (lobby) {
     lobby.style.display = 'flex';
   }
 
-  // Re-enable join button
   var joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn) {
     joinBtn.style.display = 'inline-block';
@@ -2051,11 +2251,9 @@ function resetAllUIElements() {
     joinBtn.textContent = 'Join Game';
   }
 
-  // Hide start button
   var startBtn = document.getElementById('startBtn');
   if (startBtn) startBtn.style.display = 'none';
 
-  // Clear player list
   var playerList = document.getElementById('playerList');
   if (playerList) playerList.innerHTML = '';
   
@@ -2065,38 +2263,31 @@ function resetAllUIElements() {
   console.log('UI reset complete - waiting for new players');
 }
 
-
-
-
 /* ------------------------------
-   10) INITIALIZE
+   INITIALIZE
 ------------------------------ */
 function initGame() {
-  // user interaction primes audio on mobile
   document.addEventListener('click', function(){ initSounds(); initWebAudio(); }, { once: true });
   document.addEventListener('touchstart', function(){ initSounds(); initWebAudio(); }, { once: true });
 
-  // load sprites
   console.log('Loading sushi character sprites...');
   gameGraphics.loadAllSushiCharacters();
 
   function initEnhancedFeatures() {
-    // Start Tokyo atmosphere effects
     tokyoAtmosphere.startCherryBlossoms();
     console.log('Enhanced Sushi Sprint features initialized!');
   }
 
   initEnhancedFeatures();
+  setupKeyboardControls();
 
   if (eventListenersSetup) return;
   eventListenersSetup = true;
 
-    // ADD THIS near the start:
   if (typeof crowdSystem !== 'undefined') {
     crowdSystem.init();
   }
 
-  // Set track width (longer on desktop)
   var raceLengthPx = isMobileDevice() ? 4500 : 7000;
   var track = document.getElementById('track');
   if (track) {
@@ -2107,7 +2298,6 @@ function initGame() {
     gameState.trackWidth = Math.max(window.innerWidth - 60, 300);
   }
 
-  // Track container hidden in lobby
   var container = document.querySelector('.track-container');
   if (container) {
     container.classList.remove('active');
@@ -2115,7 +2305,6 @@ function initGame() {
     container.style.position = 'relative';
   }
 
-  // Buttons (declare once + guard bindings)
   var joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn && !joinBtn._bound) {
     joinBtn.addEventListener('click', joinRoom);
@@ -2131,7 +2320,6 @@ function initGame() {
     startBtn._bound = true;
   }
 
-  // Hide loading, show lobby, lock scroll
   var loading = document.getElementById('loadingScreen');
   if (loading) {
     loading.style.opacity = '0';
@@ -2141,14 +2329,11 @@ function initGame() {
   if (lobby) lobby.style.display = 'block';
   lockScroll(true);
 
-  // Resume lobby music
-  // Music setup - only try to play after user interaction
   var bg = document.getElementById('bgMusic');
   if (bg) {
     bg.volume = 0.35;
     bg.dataset.autoplay = '1';
     
-    // Don't try to play immediately - wait for user interaction
     document.addEventListener('click', function() {
       if (bg.paused) {
         bg.play().catch(err => console.log('Music play failed:', err));
@@ -2162,12 +2347,11 @@ function initGame() {
     }, { once: true });
   }
 
-  // auto-assign this socket to a waiting room so it receives roster updates
   if (!gameState.roomId) socket.emit('quickRace');
 }
 
 /* ------------------------------
-   11) SOCKET EVENTS
+   SOCKET EVENTS
 ------------------------------ */
 socket.on('connect', function(){
   console.log('Connected to server');
@@ -2177,11 +2361,9 @@ socket.on('disconnect', function(){
   console.log('Disconnected from server');
 });
 
-// Handle reset starting notification
 socket.on('resetStarting', function() {
   console.log("Reset starting - clearing local state");
   
-  // Immediately stop all ongoing processes
   gameState.isResetting = true;
   gameState.countdownActive = false;
   gameLoopRunning = false;
@@ -2191,7 +2373,6 @@ socket.on('resetStarting', function() {
     timerInterval = null;
   }
   
-  // Clear all animations immediately
   for (var id in playerStates) {
     if (playerStates[id] && playerStates[id].animationInterval) {
       clearInterval(playerStates[id].animationInterval);
@@ -2200,14 +2381,12 @@ socket.on('resetStarting', function() {
   }
 });
 
-// Assigned to a waiting room (global lobby)
 socket.on('roomAssigned', function (data) {
   if (!data) return;
   gameState.roomId = data.roomId;
   console.log('Assigned to room:', data.roomId);
 });
 
-// Roster update
 socket.on('playerJoined', function (data) {
   if (gameState.isResetting) return;
 
@@ -2224,8 +2403,6 @@ socket.on('playerJoined', function (data) {
 
   applySlotAvailability();
 
-  // Update lobby roster UI
-    // UPDATE THIS SECTION - Add bot indicators
   var playerList = document.getElementById('playerList');
   if (playerList) {
     playerList.innerHTML = '';
@@ -2234,7 +2411,6 @@ socket.on('playerJoined', function (data) {
       var div = document.createElement('div');
       div.className = 'player-entry';
 
-      // Mark bots with special styling
       if (player.isBot) {
         div.classList.add('bot-player');
         div.style.opacity = '0.85';
@@ -2265,7 +2441,6 @@ socket.on('playerJoined', function (data) {
       }
 
       var label = document.createElement('span');
-      // Add [BOT] indicator
       label.textContent = player.name.toUpperCase() + (player.isBot ? ' [BOT]' : '');
 
       div.appendChild(avatar);
@@ -2273,7 +2448,6 @@ socket.on('playerJoined', function (data) {
       playerList.appendChild(div);
     });
 
-    // Update counter with bot count
     var counterEl = document.getElementById('playerCounter');
     var max = (data && typeof data.maxPlayers === 'number') ? data.maxPlayers : 4;
     var totalPlayers = Object.keys(gameState.players).length;
@@ -2289,7 +2463,6 @@ socket.on('playerJoined', function (data) {
     }
   }
 
-  // Start button logic
   var startBtn = document.getElementById('startBtn');
   var playerCount = Object.keys(gameState.players).length;
   var isHost = (data && data.hostSocketId) ? (socket.id === data.hostSocketId) : false;
@@ -2303,7 +2476,7 @@ socket.on('playerJoined', function (data) {
         startBtn.textContent = "Start (3 Players)";
       }
     } else if (isHost && playerCount === 4) {
-      startBtn.style.display = 'none'; // auto-start case
+      startBtn.style.display = 'none';
     } else {
       startBtn.style.display = 'none';
     }
@@ -2376,17 +2549,11 @@ socket.on('gameStarted', function (data) {
   console.log('Race starting...');
 });
 
-
-
-// Reset room handler
-// Reset room handler - REPLACE YOUR EXISTING ONE
 socket.on('resetRoom', (data) => {
   console.log('Reset room event received from server', data);
   
-  // First reset UI
   resetAllUIElements();
 
-  // Then clear game state
   gameState.players     = {};
   gameState.positions   = {};
   gameState.speeds      = {};
@@ -2396,27 +2563,20 @@ socket.on('resetRoom', (data) => {
   gameState.startTime = null;
   gameState.roomId = null;
   
-  // Request new room assignment
   socket.emit('quickRace');
   
   console.log('Local reset complete, requested new room');
 });
-
-// Remove the old roomReset handler if you have one
-
-
 
 socket.on('updateState', function (data) {
   if (gameState.isResetting || gameState.raceFinished) return;
   
   if (data && data.positions) {
     for (var k in data.positions) {
-      // Only update if server position is significantly different
       var serverPos = data.positions[k];
       var localPos = gameState.positions[k] || 20;
       
       if (Math.abs(serverPos - localPos) > 5) {
-        // Reconcile with server position
         gameState.positions[k] = serverPos;
         var runner = document.getElementById('runner' + k);
         if (runner) {
@@ -2431,7 +2591,6 @@ socket.on('updateState', function (data) {
   }
 });
 
-// Animation sync from server
 socket.on('startAnimation', function({ playerId }) {
   startRunnerAnimation(playerId);
 });
@@ -2444,7 +2603,6 @@ socket.on('endRace', (data) => {
 
   console.log("EndRace payload:", data);
 
-  // Update state
   gameState.players     = data.players     || {};
   gameState.positions   = data.positions   || {};
   gameState.speeds      = data.speeds      || {};
@@ -2457,21 +2615,16 @@ socket.on('endRace', (data) => {
     timerInterval = null; 
   }
 
-  // Show results after a brief delay
   setTimeout(function() {
     showResults();
   }, 500);
 });
 
-
-
-// Updated roomReset handler
 socket.on('roomReset', function(data) {
   console.log("Room reset confirmed by server", data);
   
-  // Complete the reset process
   gameState.isResetting = false;
-  gameState.roomId = null; // Force new room assignment
+  gameState.roomId = null;
   gameState.players = {};
   gameState.positions = {};
   gameState.speeds = {};
@@ -2481,10 +2634,8 @@ socket.on('roomReset', function(data) {
   gameState.finishTimes = {};
   playerStates = {};
 
-  // Reset all UI elements
   resetAllUIElements();
   
-  // Re-enable join button
   var joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn) {
     joinBtn.style.display = 'inline-block';
@@ -2492,18 +2643,15 @@ socket.on('roomReset', function(data) {
     joinBtn.textContent = 'Join Game';
   }
 
-  // Hide start button
   var startBtn = document.getElementById('startBtn');
   if (startBtn) startBtn.style.display = 'none';
 
-  // Clear player list
   var playerList = document.getElementById('playerList');
   if (playerList) playerList.innerHTML = '';
   
   var counterEl = document.getElementById('playerCounter');
   if (counterEl) counterEl.textContent = 'Players joined: 0/4';
 
-  // Show lobby
   var lobby = document.getElementById('lobby');
   if (lobby) lobby.style.display = 'block';
   
@@ -2511,7 +2659,7 @@ socket.on('roomReset', function(data) {
 });
 
 /* ------------------------------
-   12) LAYOUT / SETUP HELPERS
+   LAYOUT / SETUP
 ------------------------------ */
 function setupLanes() {
   for (var i = 1; i <= 4; i++) {
@@ -2531,11 +2679,9 @@ function setupLanes() {
           runner.classList.add('bot-runner');
         }
         
-        // CRITICAL: Wait for sprites to load before updating
         if (gameGraphics.characters[i] && gameGraphics.characters[i].loaded) {
           gameGraphics.updateRunnerSprite(i);
         } else {
-          // Retry after a short delay for slow connections
           setTimeout(function(playerId) {
             if (gameGraphics.characters[playerId] && gameGraphics.characters[playerId].loaded) {
               gameGraphics.updateRunnerSprite(playerId);
@@ -2579,122 +2725,7 @@ function getPlayerColor(i) {
 }
 
 /* ------------------------------
-   13) MOBILE CONTROLS (UPDATED - NO TAP DURING COUNTDOWN)
------------------------------- */
-function setupMobileControls() {
-  var controlLayout = document.getElementById('controlLayout');
-  if (!controlLayout) return;
-
-  controlLayout.innerHTML = '';
-
-  // Find my players
-  var myPlayers = [];
-  for (var k in gameState.players) {
-    var p = gameState.players[k];
-    if (p && p.socketId === socket.id) myPlayers.push(p);
-  }
-  if (myPlayers.length === 0) return;
-
-  myPlayers.forEach(function(player){
-    var wrapper = document.createElement('div');
-    wrapper.className = 'player-touch-controls player' + player.id + ' dual';
-    wrapper.style.marginBottom = "20px";
-
-    wrapper.innerHTML = `
-      <div class="control-player-label" style="margin-bottom:10px;">
-        ${(player.name || ('Runner ' + player.id)).toUpperCase()}
-      </div>
-      <div class="dual-buttons">
-        <button class="touch-btn" data-player="${player.id}" data-side="L">L</button>
-        <button class="touch-btn" data-player="${player.id}" data-side="R">R</button>
-      </div>`;
-    controlLayout.appendChild(wrapper);
-  });
-
-  // Hook up press/release
-  var btns = controlLayout.querySelectorAll('.touch-btn');
-  btns.forEach(function(btn){
-    if (btn._bound) return;
-
-    var pid = parseInt(btn.getAttribute('data-player'), 10);
-    var press = function(e){ tapPress(e, pid, btn); };
-    var release = function(e){ tapRelease(e, pid, btn); };
-
-    btn.addEventListener('touchstart', press, { passive:false });
-    btn.addEventListener('touchend', release, { passive:false });
-    btn.addEventListener('mousedown', press);
-    btn.addEventListener('mouseup', release);
-
-    btn._bound = true;
-  });
-}
-
-function tapPress(e, playerId, btn) {
-  e.preventDefault(); 
-  e.stopPropagation();
-  
-  // PREVENT TAPPING DURING COUNTDOWN
-  if (gameState.countdownActive) {
-    console.log('Tapping blocked - countdown in progress');
-    return;
-  }
-  
-  // NEW: Check if taps are blocked by SOY_TRAP
-  if (playerStates[playerId] && playerStates[playerId].tapsBlocked) {
-    console.log('Taps blocked by power-up!');
-    return;
-  }
-  
-  if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) return;
-
-  btn.classList.add('pressed');
-
-  if (!playerStates[playerId]) playerStates[playerId] = {};
-  playerStates[playerId].lastTap = Date.now();
-
-  // PREDICTIVE MOVEMENT - Move locally first
-  var currentPos = gameState.positions[playerId] || 20;
-  var predictedMovement = 8;
-  var newPosition = currentPos + predictedMovement;
-  
-  // Update local position immediately
-  gameState.positions[playerId] = newPosition;
-  var runner = document.getElementById('runner' + playerId);
-  if (runner) {
-    runner.style.left = newPosition + 'px';
-  }
-
-  // Start animation and send to server
-  startRunnerAnimation(playerId);
-  socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
-
-  // Spawn dust and play sounds
-  spawnDust(playerId);
-  if (sounds.initialized) sounds.playTap();
-  if (navigator.vibrate) navigator.vibrate(10);
-}
-
-function tapRelease(e, playerId, btn) {
-  e.preventDefault();
-  e.stopPropagation();
-
-  const targetBtn = btn || (e.target.closest ? e.target.closest('.touch-btn') : null);
-  if (targetBtn) {
-    targetBtn.classList.remove('pressed');
-    targetBtn.classList.remove('active');
-  }
-
-  const runner = document.getElementById('runner' + playerId);
-  if (!runner) return;
-
-  clearTimeout(runner._stopTimer);
-  runner._stopTimer = setTimeout(() => {
-    stopRunnerAnimation(playerId);
-  }, 200);
-}
-
-/* ------------------------------
-   14) ANIMATION CONTROL
+   ANIMATION CONTROL
 ------------------------------ */
 function startRunnerAnimation(playerId) {
   var runner = document.getElementById('runner' + playerId);
@@ -2708,7 +2739,6 @@ function startRunnerAnimation(playerId) {
   runner.classList.add('running');
   playerStates[playerId].isRunning = true;
 
-  // ENSURE SPRITE STAYS VISIBLE
   var character = gameGraphics.characters[playerId];
   if (character && character.loaded && character.frames.length > 0 && !runner.dataset.frames) {
     runner.dataset.frames = JSON.stringify(character.frames);
@@ -2730,7 +2760,7 @@ function stopRunnerAnimation(playerId) {
   if (!runner) return;
 
   var lastTap = playerStates[playerId] ? (playerStates[playerId].lastTap || 0) : 0;
-  if (Date.now() - lastTap < 280) return; // tapped again recently
+  if (Date.now() - lastTap < 280) return;
 
   runner.classList.remove('running');
   if (playerStates[playerId]) {
@@ -2750,15 +2780,13 @@ function spawnDust(playerId) {
   dust.className = 'dust';
   dust.textContent = '💨';
   dust.style.left = (runner.offsetLeft - 12) + 'px';
-  // Add the runner's height to move dust to the bottom (feet)
   dust.style.top = (runner.offsetTop + runner.offsetHeight - 17) + 'px';
   runner.parentElement.appendChild(dust);
   setTimeout(function(){ dust.remove(); }, 420);
 }
 
-
 /* ------------------------------
-   15) COUNTDOWN / TIMER / GAMELOOP (UPDATED)
+   COUNTDOWN / TIMER / GAMELOOP
 ------------------------------ */
 function startCountdown() {
   if (gameState.isResetting) return;
@@ -2779,7 +2807,6 @@ function startCountdown() {
     if (count > 0) {
       countdownEl.textContent = String(count);
       
-      // Resume audio context if suspended (mobile issue fix)
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
@@ -2788,7 +2815,6 @@ function startCountdown() {
     } else if (count === 0) {
       countdownEl.style.display = 'none';
       
-      // Resume audio context before playing GO sound
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
@@ -2799,12 +2825,10 @@ function startCountdown() {
         kanjiEffects.showKanji('start');
       }
       
-
-      // ADD THIS (every few frames):
-  if (Math.random() < 0.1 && typeof crowdSystem !== 'undefined') {
-    crowdSystem.onCloseRacing(gameState.positions);
-  }
-      // Crowd reacts to race start
+      if (Math.random() < 0.1 && typeof crowdSystem !== 'undefined') {
+        crowdSystem.onCloseRacing(gameState.positions);
+      }
+      
       if (typeof crowdSystem !== 'undefined') {
         crowdSystem.onRaceStart();
       }
@@ -2850,10 +2874,9 @@ function gameLoop() {
   
   updateGame();
   
-  // ADD THIS: Spawn new elements periodically
   if (Math.random() < 0.1) {
     if (typeof powerUpSystem !== 'undefined') {
-      powerUpSystem.spawnRandomPowerUps();
+      powerUpSystem.spawnFixedPowerUps();
     }
     if (typeof trackElements !== 'undefined') {
       trackElements.spawnRandomElements();
@@ -2865,14 +2888,13 @@ function gameLoop() {
 }
 
 /* ------------------------------
-   16) CORE UPDATE + CAMERA + PARALLAX
+   CORE UPDATE + CAMERA
 ------------------------------ */
 function updateGame() {
   if (gameState.isResetting) return;
   var leadingPlayerPosition = 0;
   var leadingPlayerId = null;
   
-  // Apply positions to DOM; animation controlled by taps only (not speed)
   for (var playerId in gameState.players) {
     var position = (typeof gameState.positions[playerId] === 'number') ? gameState.positions[playerId] : 20;
     var runner = document.getElementById('runner' + playerId);
@@ -2889,40 +2911,36 @@ function updateGame() {
     }
   }
   
-  // Camera follow: keep leader ~30% from left
   var track = document.getElementById('track');
   var container = document.querySelector('.track-container');
   var grandstand = document.getElementById('grandstand');
   if (!track || !container || leadingPlayerId === null) return;
-// Camera follow: each player follows their own character
-var myPlayerId = null;
-for (var pid in gameState.players) {
-  if (gameState.players[pid].socketId === socket.id) {
-    myPlayerId = pid;
-    break;
-  }
-}
 
-if (myPlayerId) {
-  var myRunner = document.getElementById('runner' + myPlayerId);
-  if (myRunner) {
-    var screenOffset = container.offsetWidth * 0.3;
-    var currentRunnerX = myRunner.offsetLeft;
-    var newOffset = Math.max(0, currentRunnerX - screenOffset);
-    cameraState.cameraOffset = Math.min(newOffset, gameState.trackWidth - container.offsetWidth);
+  var myPlayerId = null;
+  for (var pid in gameState.players) {
+    if (gameState.players[pid].socketId === socket.id) {
+      myPlayerId = pid;
+      break;
+    }
   }
-}
+
+  if (myPlayerId) {
+    var myRunner = document.getElementById('runner' + myPlayerId);
+    if (myRunner) {
+      var screenOffset = container.offsetWidth * 0.3;
+      var currentRunnerX = myRunner.offsetLeft;
+      var newOffset = Math.max(0, currentRunnerX - screenOffset);
+      cameraState.cameraOffset = Math.min(newOffset, gameState.trackWidth - container.offsetWidth);
+    }
+  }
   
-  // Apply transforms
   track.style.transform = 'translateX(-' + cameraState.cameraOffset + 'px)';
   
-  // Parallax: background scroll (seamless)
   if (grandstand) {
     var parallaxOffset = cameraState.cameraOffset * 0.5;
     grandstand.style.backgroundPositionX = '-' + parallaxOffset + 'px';
   }
 
-  // ADD THESE ENHANCED COLLISION CHECKS:
   Object.keys(gameState.players).forEach(function(playerId) {
     if (typeof powerUpSystem !== 'undefined') {
       powerUpSystem.checkCollisions(playerId);
@@ -2934,13 +2952,7 @@ if (myPlayerId) {
 }
 
 /* ------------------------------
-   17) FINISH & RESULTS
------------------------------- */
-/* ------------------------------
-   17) FINISH & RESULTS - FIXED
------------------------------- */
-/* ------------------------------
-   17) FINISH & RESULTS
+   FINISH & RESULTS
 ------------------------------ */
 function checkFinish(playerId) {
   if (!playerStates[playerId] || gameState.finishTimes[playerId] || gameState.isResetting) return;
@@ -2957,7 +2969,7 @@ function checkFinish(playerId) {
     var finishTime = (Date.now() - gameState.startTime) / 1000;
     gameState.finishTimes[playerId] = finishTime;
 
-     if (typeof crowdSystem !== 'undefined') {
+    if (typeof crowdSystem !== 'undefined') {
       const finishedCount = Object.keys(gameState.finishTimes).length;
       const timeDiff = finishTime - (Object.values(gameState.finishTimes)[0] || finishTime);
       crowdSystem.onPlayerFinish(playerId, finishedCount, timeDiff);
@@ -2967,11 +2979,9 @@ function checkFinish(playerId) {
 
     socket.emit('checkFinish', { roomId: gameState.roomId, playerId: playerId, finishTime: finishTime });
 
-    // Stop this runner's animation
     var runner = document.getElementById('runner' + playerId);
     if (runner) stopRunnerAnimation(playerId);
 
-    // If every active player finished, end race
     var allFinished = true;
     for (var id in gameState.players) {
       if (typeof gameState.finishTimes[id] === 'undefined') { 
@@ -3006,7 +3016,6 @@ function showResults() {
   var grandstand = document.getElementById('grandstand');
   var container = document.querySelector('.track-container');
 
-  // Hide all race UI
   if (mobileControls) mobileControls.classList.remove('active');
   if (statusBar) statusBar.classList.remove('active');
   if (grandstand) grandstand.classList.remove('active');
@@ -3020,18 +3029,15 @@ function showResults() {
     container.style.display = 'none'; 
   }
 
-  // Show results screen
   if (results) {
     results.classList.add('active');
     results.style.display = 'flex';
   }
 
-  // Scroll to top
   var screen = document.getElementById('screen');
   if (screen) screen.scrollTop = 0;
   window.scrollTo(0, 0);
 
-  // Populate leaderboard
   var leaderboard = document.getElementById('leaderboard');
   if (!leaderboard) {
     console.error('Leaderboard element not found!');
@@ -3040,7 +3046,6 @@ function showResults() {
   
   leaderboard.innerHTML = '';
 
-  // Sort players by finish time
   var sorted = Object.keys(gameState.finishTimes).map(function(pid){
     return { 
       playerId: pid, 
@@ -3058,7 +3063,6 @@ function showResults() {
     return;
   }
 
-  // Display results
   var medals = ['🥇','🥈','🥉','🏅'];
   sorted.forEach(function(r, index){
     var row = document.createElement('div');
@@ -3068,7 +3072,6 @@ function showResults() {
     leaderboard.appendChild(row);
   });
 
-  // Winner celebration
   var winner = sorted[0];
   if (winner) {
     var winnerRunner = document.getElementById('runner' + winner.playerId);
@@ -3081,7 +3084,7 @@ function showResults() {
 }
 
 /* ------------------------------
-   18) RESET
+   RESET
 ------------------------------ */
 function resetGame() {
   if (gameState.isResetting) {
@@ -3092,12 +3095,14 @@ function resetGame() {
   console.log("Initiating game reset...");
   gameState.isResetting = true;
   
-  // Clear dynamic elements
   if (typeof trackElements !== 'undefined') trackElements.clearElements();
   if (typeof powerUpSystem !== 'undefined') powerUpSystem.activePowerUps = {};
   document.querySelectorAll('.cherry-blossom, .position-announcement, .power-up-text, .kanji-effect').forEach(el => el.remove());
+
+  if (typeof powerUpSystem !== 'undefined') {
+    powerUpSystem.reset();
+  }
   
-  // Stop all intervals and timers
   gameState.countdownActive = false;
   gameLoopRunning = false;
   
@@ -3110,7 +3115,6 @@ function resetGame() {
     crowdSystem.reset();
   }
   
-  // Clear all animations
   for (var id in playerStates) {
     if (playerStates[id] && playerStates[id].animationInterval) {
       clearInterval(playerStates[id].animationInterval);
@@ -3118,14 +3122,13 @@ function resetGame() {
     }
   }
   
-  // Tell server to reset
   socket.emit('resetRoom', gameState.roomId);
   
   console.log("Reset request sent to server");
 }
 
 /* ------------------------------
-   19) LOBBY HELPERS
+   LOBBY HELPERS
 ------------------------------ */
 function applySlotAvailability() {
   for (var i = 1; i <= 4; i++) {
@@ -3138,7 +3141,7 @@ function applySlotAvailability() {
 }
 
 /* ------------------------------
-   20) JOIN ROOM
+   JOIN ROOM
 ------------------------------ */
 function joinRoom() {
   if (gameState.isResetting) return;
@@ -3154,7 +3157,6 @@ function joinRoom() {
     return;
   }
 
-  // Find first available slot automatically
   var slot = null;
   for (var i = 1; i <= 4; i++) {
     if (!gameState.players[i]) { slot = i; break; }
@@ -3163,13 +3165,12 @@ function joinRoom() {
 
   socket.emit('joinRoom', { roomId: gameState.roomId, playerNum: slot });
 
-  // Hide Join button after success
   var joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn) joinBtn.style.display = 'none';
 }
 
 /* ------------------------------
-   21) UTILITIES & INIT HOOKS
+   UTILITIES
 ------------------------------ */
 function isMobileDevice() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
@@ -3188,11 +3189,9 @@ window.addEventListener('resize', function () {
   ensureFinishLine();
 });
 
-// Initialize early for mobile Safari + on full load
 document.addEventListener('DOMContentLoaded', initGame);
 window.addEventListener('load', initGame);
 
-// Expose for debugging
 window.gameState = gameState;
 window.playerStates = playerStates;
 window.resetGame = resetGame;

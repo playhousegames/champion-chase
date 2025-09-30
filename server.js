@@ -1,3 +1,4 @@
+
 // --- Sushi Sprint server (Express + Socket.IO) ---
 const express  = require('express');
 const http     = require('http');
@@ -8,6 +9,7 @@ const os       = require('os');
 const app    = express();
 const server = http.createServer(app);
 const io     = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
+const SPEED_MULTIPLIER = 3; // try 2, 3, or 4 until it feels right
 
 // ---- Config ----
 const MAX_PLAYERS  = 4;   // hard cap
@@ -124,9 +126,9 @@ function startBotAI(roomId, playerId, delay = 0) {
         const last = room.tapStreaks[playerId] || 0;
         const diff = now - last;
 
-        let boost = 8;
-        if (diff < 200) boost = 12;
-        if (diff < 120) boost = 16;
+        let boost = 24;
+        if (diff < 200) boost = 48;
+        if (diff < 120) boost = 64;
 
         room.positions[playerId] = (room.positions[playerId] || 20) + boost;
         room.speeds[playerId] = boost;
@@ -379,35 +381,34 @@ io.on('connection', (socket) => {
   });
 
   // Tap action (boost based on tap cadence) + ANIMATION SYNC
-  socket.on('playerAction', ({ roomId: rid, playerId }) => {
-    const room = rooms[rid];
-    if (!room || !room.players[playerId]) return;
+// Tap action (boost based on tap cadence) + ANIMATION SYNC
+socket.on('playerAction', ({ roomId: rid, playerId }) => {
+  const room = rooms[rid];
+  if (!room || !room.players[playerId]) return;
 
-    const now  = Date.now();
-    const last = room.tapStreaks[playerId] || 0;
-    const diff = now - last;
+  const now  = Date.now();
+  const last = room.tapStreaks[playerId] || 0;
+  const diff = now - last;
 
-    let boost = 8;
-    if (diff < 200) boost = 12;    // quick
-    if (diff < 120) boost = 16;    // frantic
+  let boost = 8 * SPEED_MULTIPLIER;
+  if (diff < 200) boost = 12 * SPEED_MULTIPLIER;   // quick taps
+  if (diff < 120) boost = 16 * SPEED_MULTIPLIER;   // frantic taps
 
-    room.positions[playerId] = (room.positions[playerId] || 20) + boost;
-    room.speeds[playerId] = boost;
-    room.tapStreaks[playerId] = now;
+  room.positions[playerId] = (room.positions[playerId] || 20) + boost;
+  room.speeds[playerId] = boost;
+  room.tapStreaks[playerId] = now;
 
-    // broadcast state
-    io.to(rid).emit('updateState', {
-      positions: room.positions,
-      speeds: room.speeds
-    });
-
-    // start/stop animation notifications to *all* clients
-    io.to(rid).emit('startAnimation', { playerId });
-    clearTimeout(room.stopTimers[playerId]);
-    room.stopTimers[playerId] = setTimeout(() => {
-      io.to(rid).emit('stopAnimation', { playerId });
-    }, 300);
+  io.to(rid).emit('updateState', {
+    positions: room.positions,
+    speeds: room.speeds
   });
+
+  io.to(rid).emit('startAnimation', { playerId });
+  clearTimeout(room.stopTimers[playerId]);
+  room.stopTimers[playerId] = setTimeout(() => {
+    io.to(rid).emit('stopAnimation', { playerId });
+  }, 300);
+});
 
   // Client reports a finish time
   // Client reports a finish time
