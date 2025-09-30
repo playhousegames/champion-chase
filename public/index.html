@@ -856,6 +856,11 @@
 
 /* Make sure running animation doesn't hide background */
 .runner.running {
+    /* Make sure background stays visible during animation */
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  opacity: 1 !important;
   /* Keep all background properties */
 }
     .name-label { position: absolute; top: 2px; left: 10px; font-size: .75rem; color: yellow; }
