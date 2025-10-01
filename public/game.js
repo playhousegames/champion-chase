@@ -1029,39 +1029,71 @@ storePowerUp: function(playerId, type) {
 
   if (!player.isBot && player.socketId === socket.id) {
     this.showActivationButton(playerId, type);
-    this.showCollectionFeedback(type);
+    this.showCollectionFeedback(type);  // This should NOT show kanji
   }
 
   console.log(`→ Tap the glowing button to activate!`);
 },
 
 
-
-
 showCollectionFeedback: function(type) {
   const feedback = document.createElement('div');
-  feedback.className = 'collection-feedback';
   feedback.innerHTML = `
-    <div style="font-size: 3rem; font-family: 'Noto Sans JP', serif; margin-bottom: 8px;">${type.kanji}</div>
-    <div style="font-size: 2rem; margin-bottom: 8px;">${type.icon}</div>
-    <div style="font-size: 1rem; color: ${type.color}; margin-top: 8px;">${type.name}</div>
-    <div style="font-size: 0.7rem; color: #FFD700; margin-top: 4px;">→ STORED →</div>
+    <div style="font-size: 2rem; margin-bottom: 6px;">${type.icon}</div>
+    <div style="font-size: 0.9rem; color: ${type.color};">${type.name}</div>
+    <div style="font-size: 0.7rem; color: #FFD700; margin-top: 4px;">COLLECTED!</div>
   `;
   feedback.style.cssText = `
     position: fixed;
-    top: 35%;
+    top: 15%;
     left: 50%;
     transform: translateX(-50%);
     text-align: center;
-    z-index: 9999;
-    animation: collectionFeedbackPop 1s ease-out forwards;
-    pointer-events: none;
     font-family: 'Press Start 2P', monospace;
-    text-shadow: 2px 2px 0 #000;
+    z-index: 9999;
+    animation: collectionFeedbackPop 0.8s ease-out forwards;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.9);
+    padding: 16px 24px;
+    border: 3px solid ${type.color};
+    border-radius: 12px;
+    box-shadow: 0 0 30px ${type.color};
   `;
   
   document.body.appendChild(feedback);
-  setTimeout(() => feedback.remove(), 1000);
+  setTimeout(() => feedback.remove(), 800);
+},
+
+
+
+
+showActivationFeedback: function(text, color, type) {
+  const feedback = document.createElement('div');
+  feedback.innerHTML = `
+    <div style="font-size: 4rem; font-family: 'Noto Sans JP', serif; color: ${color}; text-shadow: 3px 3px 0 #000;">${type.kanji}</div>
+    <div style="font-size: 3rem; margin: 10px 0;">${type.icon}</div>
+    <div style="font-size: 1.5rem; color: ${color}; margin-top: 8px;">${text}</div>
+    <div style="font-size: 0.9rem; color: #FFD700; margin-top: 12px;">ACTIVATED!</div>
+  `;
+  feedback.style.cssText = `
+    position: fixed;
+    top: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    z-index: 10000;
+    animation: activationFeedbackPop 1.5s ease-out forwards;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.95);
+    padding: 30px 40px;
+    border: 4px solid ${color};
+    border-radius: 15px;
+    box-shadow: 0 0 40px ${color};
+  `;
+  
+  document.body.appendChild(feedback);
+  setTimeout(() => feedback.remove(), 1500);
 },
 
 activateStoredPowerUp: function(playerId) {
@@ -1083,13 +1115,12 @@ activateStoredPowerUp: function(playerId) {
 
   // Feedback (only for the local player)
   if (!player.isBot && player.socketId === socket.id) {
-    this.showActivationFeedback(stored.name, stored.color);
-    this.hideActivationButton(); // Hide the button
+    this.showActivationFeedback(stored.name, stored.color, stored);  // Pass the type object
+    this.hideActivationButton();
   }
 
   // Remove from storage
   delete this.playerStorage[playerId];
-  // this.updateStorageUI(playerId);
 
   // Remove icon above runner
   const runner = document.getElementById('runner' + playerId);
@@ -2863,6 +2894,7 @@ function setupLanes() {
   setTimeout(function() {
     var character = gameGraphics.characters[pid];
     if (character && character.frames && character.frames.length > 0) {
+      // Use runnerEl (captured) not runner (wrong reference)
       runnerEl.dataset.frames = JSON.stringify(character.frames);
       runnerEl.dataset.currentFrame = '0';
       runnerEl.style.backgroundImage = 'url(' + character.frames[0] + ')';
@@ -2876,7 +2908,7 @@ function setupLanes() {
       console.warn('No sprite data for player', pid);
     }
   }, 200);
-})(i, runner);  // ✅ Pass both i and runner here
+})(i, runner);  // Pass i and runner here
 
         if (!playerStates[i]) {
           playerStates[i] = {
