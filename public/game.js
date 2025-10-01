@@ -726,44 +726,48 @@ function setupKeyboardControls() {
    POWER-UP SYSTEM
 ------------------------------ */
 var powerUpSystem = {
-  types: {
-    WASABI_RUSH: { 
-      id: 'wasabi', 
-      name: 'WASABI RUSH', 
-      color: '#00FF88', 
-      icon: '🔥',
-      duration: 3000,
-      effect: 'speedBoost',
-      description: 'SPEED BOOST'
-    },
-  FREEZE_BOMB: {  // NEW - replaces SOY_TRAP
+types: {
+  WASABI_RUSH: { 
+    id: 'wasabi', 
+    name: 'WASABI RUSH', 
+    color: '#00FF88', 
+    icon: '🔥',
+    kanji: '速',
+    duration: 3000,
+    effect: 'speedBoost',
+    description: 'SPEED BOOST'
+  },
+  FREEZE_BOMB: {
     id: 'freeze', 
     name: 'FREEZE BOMB', 
     color: '#00FFFF', 
     icon: '❄️',
+    kanji: '凍',
     duration: 2500,
     effect: 'freezeOpponents',
     description: 'FREEZE ALL'
-    },
-    DASH_ROLL: {
-      id: 'dash', 
-      name: 'DASH', 
-      color: '#FF00FF', 
-      icon: '⚡',
-      duration: 500,
-      effect: 'instantForward',
-      description: 'BURST DASH'
-    },
-    MEGA_BOOST: { 
-      id: 'mega', 
-      name: 'MEGA BOOST', 
-      color: '#FFD700', 
-      icon: '⭐',
-      duration: 4000,
-      effect: 'megaBoost',
-      description: 'SUPER SPEED'
-    }
   },
+  DASH_ROLL: {
+    id: 'dash', 
+    name: 'DASH', 
+    color: '#FF00FF', 
+    icon: '⚡',
+    kanji: '疾',
+    duration: 500,
+    effect: 'instantForward',
+    description: 'BURST DASH'
+  },
+  MEGA_BOOST: { 
+    id: 'mega', 
+    name: 'MEGA BOOST', 
+    color: '#FFD700', 
+    icon: '⭐',
+    kanji: '超',
+    duration: 4000,
+    effect: 'megaBoost',
+    description: 'SUPER SPEED'
+  }
+},
 
   playerStorage: {},
   spawnedPowerUps: [],
@@ -840,7 +844,68 @@ showActivationButton: function(playerId, type) {
   
   // Set the icon
   btn.textContent = type.icon;
-  btn.style.display = 'flex'; // Changed from 'block'
+  btn.style.display = 'flex';
+  
+  // Add instruction text that pulses
+  let instructionText = btn.querySelector('.instruction-text');
+  if (!instructionText) {
+    instructionText = document.createElement('div');
+    instructionText.className = 'instruction-text';
+    instructionText.style.cssText = `
+      position: absolute;
+      top: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: #FFD700;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      animation: instructionPulse 1s ease-in-out infinite;
+      pointer-events: none;
+      border: 2px solid #FFD700;
+      font-family: 'Press Start 2P', monospace;
+    `;
+    instructionText.textContent = 'TAP TO USE!';
+    btn.appendChild(instructionText);
+  }
+  
+  // Add down arrow indicator
+// Add side arrow indicator pointing at button
+let arrow = btn.querySelector('.side-arrow');
+if (!arrow) {
+  arrow = document.createElement('div');
+  arrow.className = 'side-arrow';
+  arrow.style.cssText = `
+    position: absolute;
+    right: -60px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 2.5rem;
+    animation: arrowBounce 0.6s ease-in-out infinite;
+    pointer-events: none;
+  `;
+  arrow.textContent = '👈';
+  btn.appendChild(arrow);
+}
+  
+  // Play attention sound
+  if (audioCtx) {
+    try {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+      oscillator.type = 'sine';
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + 0.2);
+    } catch(e) {}
+  }
   
   // Remove old listener if exists
   if (btn._clickHandler) {
@@ -853,22 +918,17 @@ showActivationButton: function(playerId, type) {
     e.preventDefault();
     e.stopPropagation();
     
-    // Activate the power-up
     const stored = this.playerStorage[playerId];
     if (stored) {
       this.activateStoredPowerUp(playerId);
-      
-      // Hide button
       btn.style.display = 'none';
       
-      // Haptic feedback
       if (navigator.vibrate) {
         navigator.vibrate([50, 30, 50]);
       }
     }
   };
   
-  // Add listeners for both touch and mouse
   btn.addEventListener('click', btn._clickHandler);
   btn.addEventListener('touchstart', btn._clickHandler, { passive: false });
 },
@@ -877,6 +937,13 @@ hideActivationButton: function() {
   const btn = document.getElementById('activatePowerUpBtn');
   if (btn) {
     btn.style.display = 'none';
+    
+    const instructionText = btn.querySelector('.instruction-text');
+    if (instructionText) instructionText.remove();
+    
+    const arrow = btn.querySelector('.side-arrow');  // Changed from 'down-arrow'
+    if (arrow) arrow.remove();
+    
     if (btn._clickHandler) {
       btn.removeEventListener('click', btn._clickHandler);
       btn.removeEventListener('touchstart', btn._clickHandler);
@@ -971,30 +1038,31 @@ storePowerUp: function(playerId, type) {
 
 
 
-  showCollectionFeedback: function(type) {
-    const feedback = document.createElement('div');
-    feedback.className = 'collection-feedback';
-    feedback.innerHTML = `
-      <div style="font-size: 2rem;">${type.icon}</div>
-      <div style="font-size: 1rem; color: ${type.color}; margin-top: 8px;">COLLECTED!</div>
-      <div style="font-size: 0.7rem; color: #FFD700; margin-top: 4px;">→ STORED →</div>
-    `;
-    feedback.style.cssText = `
-      position: fixed;
-      top: 35%;
-      left: 50%;
-      transform: translateX(-50%);
-      text-align: center;
-      z-index: 9999;
-      animation: collectionFeedbackPop 1s ease-out forwards;
-      pointer-events: none;
-      font-family: 'Press Start 2P', monospace;
-      text-shadow: 2px 2px 0 #000;
-    `;
-    
-    document.body.appendChild(feedback);
-    setTimeout(() => feedback.remove(), 1000);
-  },
+showCollectionFeedback: function(type) {
+  const feedback = document.createElement('div');
+  feedback.className = 'collection-feedback';
+  feedback.innerHTML = `
+    <div style="font-size: 3rem; font-family: 'Noto Sans JP', serif; margin-bottom: 8px;">${type.kanji}</div>
+    <div style="font-size: 2rem; margin-bottom: 8px;">${type.icon}</div>
+    <div style="font-size: 1rem; color: ${type.color}; margin-top: 8px;">${type.name}</div>
+    <div style="font-size: 0.7rem; color: #FFD700; margin-top: 4px;">→ STORED →</div>
+  `;
+  feedback.style.cssText = `
+    position: fixed;
+    top: 35%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 9999;
+    animation: collectionFeedbackPop 1s ease-out forwards;
+    pointer-events: none;
+    font-family: 'Press Start 2P', monospace;
+    text-shadow: 2px 2px 0 #000;
+  `;
+  
+  document.body.appendChild(feedback);
+  setTimeout(() => feedback.remove(), 1000);
+},
 
 activateStoredPowerUp: function(playerId) {
   console.log('Attempting to activate power-up for player', playerId);
