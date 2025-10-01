@@ -2309,6 +2309,14 @@ function resetAllUIElements() {
       runner.classList.remove('running', 'active', 'winner', 'bot-runner', 'speed-boost', 'slowed', 'shielded');
       runner.style.filter = '';
 
+            // ✅ ADD THESE LINES - Clear all sprite data and images
+      runner.style.backgroundImage = '';
+      runner.innerHTML = '';
+      runner.textContent = '';
+      delete runner.dataset.frames;
+      delete runner.dataset.currentFrame;
+      runner._stopTimer = null;
+
     }
     
     if (nameLabel) {
@@ -2316,6 +2324,13 @@ function resetAllUIElements() {
       nameLabel.style.opacity = '1';
     }
   }
+
+    // ✅ ADD THIS - Force sprite reload flag
+  Object.keys(gameGraphics.characters).forEach(charId => {
+    if (gameGraphics.characters[charId]) {
+      gameGraphics.characters[charId].loaded = false;
+    }
+  });
 
   gameState.raceStarted = false;
   gameState.raceFinished = false;
@@ -2770,24 +2785,30 @@ function setupLanes() {
           runner.classList.add('bot-runner');
         }
 
+        // REPLACE THE ENTIRE SPRITE LOADING SECTION WITH THIS:
+        runner.style.backgroundImage = '';
+        delete runner.dataset.frames;
+        delete runner.dataset.currentFrame;
         
-        // Always reload sprite
-  // Always reload sprite
-  if (gameGraphics.characters[i] && gameGraphics.characters[i].loaded) {
-    gameGraphics.updateRunnerSprite(i);
-} else {
-    // Force reload if not ready
-    setTimeout(function(playerId) {
-      gameGraphics.loadAllSushiCharacters();  // Reload all
-      setTimeout(() => {
-        if (gameGraphics.characters[playerId] && gameGraphics.characters[playerId].loaded) {
-          gameGraphics.updateRunnerSprite(playerId);
-        } else {
-          console.warn(`Sprites still not loaded for player ${playerId}`);
-        }
-      }, 100);
-    }.bind(null, i), 500);
-  }
+        // Force reload sprite for this player
+        (function(pid, runnerEl) {
+  setTimeout(function() {
+    var character = gameGraphics.characters[pid];
+    if (character && character.frames && character.frames.length > 0) {
+      runnerEl.dataset.frames = JSON.stringify(character.frames);
+      runnerEl.dataset.currentFrame = '0';
+      runnerEl.style.backgroundImage = 'url(' + character.frames[0] + ')';
+      runnerEl.style.backgroundSize = 'cover';
+      runnerEl.style.backgroundRepeat = 'no-repeat';
+      runnerEl.style.backgroundPosition = 'center';
+      runnerEl.style.width = '32px';
+      runnerEl.style.height = '32px';
+      console.log('Sprite reloaded for player', pid);
+    } else {
+      console.warn('No sprite data for player', pid);
+    }
+  }, 200);
+})(i, runner);  // ✅ Pass both i and runner here
 
         if (!playerStates[i]) {
           playerStates[i] = {
