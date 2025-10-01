@@ -106,6 +106,67 @@ var kanjiEffects = {
   }
 };
 
+var comboSystem = {
+  combos: {},
+  
+  addTap: function(playerId) {
+    if (!this.combos[playerId]) {
+      this.combos[playerId] = { count: 0, timer: null };
+    }
+    
+    const combo = this.combos[playerId];
+    combo.count++;
+    
+    clearTimeout(combo.timer);
+    combo.timer = setTimeout(() => {
+      combo.count = 0;
+    }, 2000);  // Change from 1000 to 2000 - longer window but still resets
+    
+    // Show combo every 20 taps instead of 5
+    if (combo.count % 20 === 0 && combo.count >= 20) {  // Only show at 20, 40, 60, etc.
+      this.showCombo(playerId, combo.count);
+    }
+  },
+  
+  showCombo: function(playerId, count) {
+    const player = gameState.players[playerId];
+    if (!player || player.isBot || player.socketId !== socket.id) return;
+    
+    const comboText = document.createElement('div');
+    comboText.className = 'combo-display';
+    comboText.innerHTML = `
+      <div style="font-size: 3rem; color: #FFD700;">${count}</div>
+      <div style="font-size: 1.2rem; color: #FF3366;">COMBO!</div>
+      <div style="font-size: 0.9rem; color: #00FF88;">連続！</div>
+    `;
+    comboText.style.cssText = `
+      position: fixed;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      font-family: 'Press Start 2P', monospace;
+      text-shadow: 3px 3px 0 #000;
+      z-index: 9999;
+      animation: comboPopJapanese 1s ease-out forwards;
+      pointer-events: none;
+    `;
+    
+    document.body.appendChild(comboText);
+    setTimeout(() => comboText.remove(), 1000);
+    
+    // Screen shake on big combos
+    if (count >= 10) {
+      document.getElementById('screen').classList.add('screen-shake');
+      setTimeout(() => {
+        document.getElementById('screen').classList.remove('screen-shake');
+      }, 300);
+    }
+    
+    if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+  }
+};
+
 /* ------------------------------
    DEFENSE + STAMINA SYSTEM
 ------------------------------ */
@@ -124,28 +185,16 @@ var defenseSystem = {
   STAMINA_REGEN: 2,
   STAMINA_TICK_MS: 200,
 
-  initStamina: function(playerId) {
-    if (!this.stamina[playerId]) this.stamina[playerId] = this.MAX_STAMINA;
+initStamina: function(playerId) {
+  if (!this.stamina[playerId]) this.stamina[playerId] = this.MAX_STAMINA;
 
-    const runner = document.getElementById('runner' + playerId);
-    if (runner) {
-      let bar = runner.querySelector('.stamina-bar');
-      if (!bar) {
-        bar = document.createElement('div');
-        bar.className = 'stamina-bar';
-        bar.style.cssText = `
-          position: absolute;
-          bottom: -8px;
-          left: 0;
-          height: 5px;
-          width: ${this.stamina[playerId]}%;
-          background: lime;
-          transition: width 0.2s linear, background 0.2s linear;
-        `;
-        runner.appendChild(bar);
-      }
-    }
-  },
+  // Update top bar for local player only
+  const player = gameState.players[playerId];
+  if (player && !player.isBot && player.socketId === socket.id) {
+    const staminaDisplay = document.getElementById('staminaDisplay');
+    if (staminaDisplay) staminaDisplay.style.display = 'flex';
+  }
+},
 
   initiateAttack: function(targetPlayerId, attackType, duration) {
   console.log(`Initiating attack on player ${targetPlayerId}: ${attackType}`);
@@ -188,37 +237,29 @@ var defenseSystem = {
     }
   },
 
-  regenLoopStarted: false,
-  startRegenLoop: function() {
-    if (this.regenLoopStarted) return;
-    this.regenLoopStarted = true;
-    setInterval(() => {
-      for (let pid in this.stamina) {
-        if (this.stamina[pid] < this.MAX_STAMINA) {
-          this.stamina[pid] = Math.min(this.MAX_STAMINA, this.stamina[pid] + this.STAMINA_REGEN);
-          const runner = document.getElementById('runner' + pid);
-          if (runner) {
-            let bar = runner.querySelector('.stamina-bar');
-            if (!bar) {
-              bar = document.createElement('div');
-              bar.className = 'stamina-bar';
-              bar.style.cssText = `
-                position: absolute;
-                bottom: -8px;
-                left: 0;
-                height: 5px;
-                background: lime;
-                transition: width 0.2s linear, background 0.2s linear;
-              `;
-              runner.appendChild(bar);
-            }
-            bar.style.width = this.stamina[pid] + '%';
-            bar.style.background = this.stamina[pid] > 30 ? 'lime' : 'red';
+startRegenLoop: function() {
+  if (this.regenLoopStarted) return;
+  this.regenLoopStarted = true;
+  setInterval(() => {
+    for (let pid in this.stamina) {
+      if (this.stamina[pid] < this.MAX_STAMINA) {
+        this.stamina[pid] = Math.min(this.MAX_STAMINA, this.stamina[pid] + this.STAMINA_REGEN);
+        
+        // Update top bar for local player
+        const player = gameState.players[pid];
+        if (player && !player.isBot && player.socketId === socket.id) {
+          const fill = document.getElementById('staminaFill');
+          if (fill) {
+            fill.style.width = this.stamina[pid] + '%';
+            fill.style.background = this.stamina[pid] > 30 
+              ? 'linear-gradient(90deg, #00FF88, #FFD700)' 
+              : 'linear-gradient(90deg, #FF3366, #FF6600)';
           }
         }
       }
-    }, this.STAMINA_TICK_MS);
-  },
+    }
+  }, this.STAMINA_TICK_MS);
+},
 
   // ==== Button Handling (FIXED TIMING) ====
 registerPress: function(playerId, side) {
@@ -451,6 +492,10 @@ function tapPress(e, playerId, btn) {
   if (gameState.countdownActive) {
     console.log('Tapping blocked - countdown in progress');
     return;
+  }
+
+    if (typeof comboSystem !== 'undefined') {
+    comboSystem.addTap(playerId);
   }
   
   if (playerStates[playerId] && playerStates[playerId].tapsBlocked) {
@@ -691,14 +736,14 @@ var powerUpSystem = {
       effect: 'speedBoost',
       description: 'SPEED BOOST'
     },
-    SOY_TRAP: { 
-      id: 'soy', 
-      name: 'SOY TRAP', 
-      color: '#8B4513', 
-      icon: '🍶',
-      duration: 2000,
-      effect: 'slowOpponents',
-      description: 'ATTACK ALL'
+  FREEZE_BOMB: {  // NEW - replaces SOY_TRAP
+    id: 'freeze', 
+    name: 'FREEZE BOMB', 
+    color: '#00FFFF', 
+    icon: '❄️',
+    duration: 2500,
+    effect: 'freezeOpponents',
+    description: 'FREEZE ALL'
     },
     DASH_ROLL: {
       id: 'dash', 
@@ -722,8 +767,8 @@ var powerUpSystem = {
 
   playerStorage: {},
   spawnedPowerUps: [],
-  nextSpawnDistance: 400,
-  spawnInterval: 500,
+  nextSpawnDistance: 800,
+  spawnInterval: 800,
 
   createPowerUp: function(type, x, y) {
     const powerUp = document.createElement('div');
@@ -1019,26 +1064,77 @@ activateStoredPowerUp: function(playerId) {
     setTimeout(() => feedback.remove(), 1500);
   },
 
-  activatePowerUpEffect: function(playerId, type) {
-    switch(type.effect) {
-      case 'speedBoost':
-        this.applySpeedBoost(playerId);
-        break;
-      case 'slowOpponents':
-        this.slowOpponents(playerId);
-        break;
-      case 'instantForward':
-        this.instantForward(playerId);
-        break;
-      case 'megaBoost':
-        this.applyMegaBoost(playerId);
-        break;
-    }
+activatePowerUpEffect: function(playerId, type) {
+  switch(type.effect) {
+    case 'speedBoost':
+      this.applySpeedBoost(playerId);
+      break;
+    case 'freezeOpponents':  // NEW
+      this.freezeOpponents(playerId);
+      break;
+    case 'instantForward':
+      this.instantForward(playerId);
+      break;
+    case 'megaBoost':
+      this.applyMegaBoost(playerId);
+      break;
+  }
 
     if (typeof crowdSystem !== 'undefined') {
       crowdSystem.onPowerUp(playerId);
     }
   },
+
+  freezeOpponents: function(playerId) {
+  const collector = gameState.players[playerId];
+  
+  Object.keys(gameState.players).forEach(pid => {
+    if (pid != playerId) {
+      const target = gameState.players[pid];
+      const runner = document.getElementById('runner' + pid);
+      
+      if (runner) {
+        // Visual freeze effect
+        runner.style.filter = 'brightness(0.5) blur(2px)';
+        runner.classList.add('frozen');
+        
+        if (!playerStates[pid]) playerStates[pid] = {};
+        playerStates[pid].tapsBlocked = true;
+        
+        // Show ice effect
+        const iceEffect = document.createElement('div');
+        iceEffect.textContent = '❄️ FROZEN!';
+        iceEffect.style.cssText = `
+          position: absolute;
+          top: -30px;
+          left: 50%;
+          transform: translateX(-50%);
+          color: #00FFFF;
+          font-size: 12px;
+          font-weight: bold;
+          text-shadow: 2px 2px 0 #000;
+          z-index: 100;
+          animation: freezeText 2.5s ease-out forwards;
+        `;
+        runner.appendChild(iceEffect);
+        
+        setTimeout(() => iceEffect.remove(), 2500);
+      }
+      
+      setTimeout(() => {
+        if (runner) {
+          runner.style.filter = '';
+          runner.classList.remove('frozen');
+        }
+        if (playerStates[pid]) playerStates[pid].tapsBlocked = false;
+      }, 2500);
+    }
+  });
+  
+  if (typeof kanjiEffects !== 'undefined') {
+    kanjiEffects.showKanji('slow'); // Shows globally
+  }
+},
 
   applySpeedBoost: function(playerId) {
     const runner = document.getElementById('runner' + playerId);
@@ -1055,7 +1151,7 @@ activateStoredPowerUp: function(playerId) {
       }
       socket.emit('playerAction', { roomId: gameState.roomId, playerId: playerId });
       tapCount++;
-    }, 350);
+    }, 200);
   },
 
   applyMegaBoost: function(playerId) {
@@ -1616,8 +1712,8 @@ var gameGraphics = {
    CONFETTI
 ------------------------------ */
 function launchTickerTape() {
-  const container = document.querySelector('.track-container');
-  if (!container) return;
+  const grandstand = document.getElementById('grandstand');
+  if (!grandstand) return;
 
   const tapes = [
     'images/ticker_red.png',
@@ -1630,10 +1726,10 @@ function launchTickerTape() {
   for (let i = 0; i < 30; i++) {
     const tape = document.createElement('div');
     tape.className = 'confetti-tape';
-    tape.style.left = Math.random() * container.offsetWidth + 'px';
-    tape.style.top = '-16px';
+    tape.style.left = Math.random() * window.innerWidth + 'px';
+    tape.style.top = (grandstand.offsetTop - 20) + 'px';  // Start from grandstand position
     tape.style.backgroundImage = `url(${tapes[Math.floor(Math.random() * tapes.length)]})`;
-    container.appendChild(tape);
+    document.body.appendChild(tape);  // Append to body instead of container
 
     const fallTime = 1800 + Math.random() * 1200;
     const drift = (Math.random() * 80 - 40);
@@ -1641,7 +1737,7 @@ function launchTickerTape() {
     tape.animate(
       [
         { transform: 'translate(0,0) rotate(0deg)' },
-        { transform: `translate(${drift}px, ${container.offsetHeight + 40}px) rotate(${Math.random() * 360}deg)` }
+        { transform: `translate(${drift}px, ${window.innerHeight}px) rotate(${Math.random() * 360}deg)` }
       ],
       {
         duration: fallTime,
@@ -2211,13 +2307,8 @@ function resetAllUIElements() {
     if (runner) {
       runner.style.left = '20px';
       runner.classList.remove('running', 'active', 'winner', 'bot-runner', 'speed-boost', 'slowed', 'shielded');
-      runner.style.backgroundImage = '';
-      runner.textContent = '';
-      runner.innerHTML = '';
-      if (runner.dataset.frames) {
-        delete runner.dataset.frames;
-        delete runner.dataset.currentFrame;
-      }
+      runner.style.filter = '';
+
     }
     
     if (nameLabel) {
@@ -2288,7 +2379,7 @@ function initGame() {
     crowdSystem.init();
   }
 
-  var raceLengthPx = isMobileDevice() ? 4500 : 7000;
+  var raceLengthPx = isMobileDevice() ? 8000 : 12000;
   var track = document.getElementById('track');
   if (track) {
     track.style.width = raceLengthPx + 'px';
@@ -2678,18 +2769,25 @@ function setupLanes() {
         if (gameState.players[i].isBot) {
           runner.classList.add('bot-runner');
         }
+
         
-        if (gameGraphics.characters[i] && gameGraphics.characters[i].loaded) {
-          gameGraphics.updateRunnerSprite(i);
+        // Always reload sprite
+  // Always reload sprite
+  if (gameGraphics.characters[i] && gameGraphics.characters[i].loaded) {
+    gameGraphics.updateRunnerSprite(i);
+} else {
+    // Force reload if not ready
+    setTimeout(function(playerId) {
+      gameGraphics.loadAllSushiCharacters();  // Reload all
+      setTimeout(() => {
+        if (gameGraphics.characters[playerId] && gameGraphics.characters[playerId].loaded) {
+          gameGraphics.updateRunnerSprite(playerId);
         } else {
-          setTimeout(function(playerId) {
-            if (gameGraphics.characters[playerId] && gameGraphics.characters[playerId].loaded) {
-              gameGraphics.updateRunnerSprite(playerId);
-            } else {
-              console.warn(`Sprites still not loaded for player ${playerId}`);
-            }
-          }.bind(null, i), 500);
+          console.warn(`Sprites still not loaded for player ${playerId}`);
         }
+      }, 100);
+    }.bind(null, i), 500);
+  }
 
         if (!playerStates[i]) {
           playerStates[i] = {
@@ -2776,13 +2874,30 @@ function spawnDust(playerId) {
   var runner = document.getElementById('runner' + playerId);
   if (!runner || !runner.parentElement) return;
 
-  var dust = document.createElement('div');
+  const dust = document.createElement('div');
   dust.className = 'dust';
   dust.textContent = '💨';
   dust.style.left = (runner.offsetLeft - 12) + 'px';
   dust.style.top = (runner.offsetTop + runner.offsetHeight - 17) + 'px';
   runner.parentElement.appendChild(dust);
   setTimeout(function(){ dust.remove(); }, 420);
+  
+  // Add sparkles randomly
+  if (Math.random() < 0.3) {
+    const sparkle = document.createElement('div');
+    sparkle.textContent = '✨';
+    sparkle.style.cssText = `
+      position: absolute;
+      left: ${runner.offsetLeft + Math.random() * 20}px;
+      top: ${runner.offsetTop + Math.random() * 20}px;
+      font-size: 16px;
+      animation: sparkleFloat 0.8s ease-out forwards;
+      pointer-events: none;
+      z-index: 50;
+    `;
+    runner.parentElement.appendChild(sparkle);
+    setTimeout(() => sparkle.remove(), 800);
+  }
 }
 
 /* ------------------------------
@@ -3178,7 +3293,7 @@ function isMobileDevice() {
 }
 
 window.addEventListener('resize', function () {
-  var raceLengthPx = isMobileDevice() ? 4500 : 7000;
+  var raceLengthPx = isMobileDevice() ? 8000 : 12000;
   var trackElement = document.getElementById('track');
   if (trackElement) {
     trackElement.style.width = raceLengthPx + 'px';

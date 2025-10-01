@@ -87,6 +87,57 @@
   border-radius: 50%;
 }
 
+@keyframes screenShake {
+  0%, 100% { transform: translate(0, 0); }
+  10%, 30%, 50%, 70%, 90% { transform: translate(-2px, 2px); }
+  20%, 40%, 60%, 80% { transform: translate(2px, -2px); }
+}
+
+.screen-shake {
+  animation: screenShake 0.3s ease-in-out;
+}
+
+@keyframes comboPopJapanese {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(-10deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.3) rotate(5deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -80%) scale(0.5) rotate(0deg);
+  }
+}
+
+@keyframes sparkleFloat {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px) scale(1.5);
+  }
+}
+
+@keyframes freezeText {
+  0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
+
+.frozen {
+  animation: frozenShake 0.2s infinite;
+}
+
+@keyframes frozenShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1px); }
+  75% { transform: translateX(1px); }
+}
+
 @keyframes powerUpPulse {
   0%, 100% { 
     transform: translate(-50%, -50%) scale(1);
@@ -697,7 +748,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: min(540px, 92vw);
-  height: 56px;
+  height: 40px;
   display: none;
   align-items: center;
   justify-content: center;
@@ -718,7 +769,7 @@
   text-shadow: 2px 2px 0 #000;
 }
 #statusBar .status-timer {
-  font-size: 1.25rem;
+  font-size: 1rem;
   letter-spacing: 1px;
   color: #fff;
 }
@@ -1030,6 +1081,24 @@
 <div id="statusBar">
   <span class="status-brand">RACE TIME</span>
   <span class="status-timer">⏱ <span id="timer">00.000</span></span>
+  <div id="staminaDisplay" style="display:none;">
+    <div style="font-size:0.7rem; margin-bottom:2px;">ENERGY</div>
+    <div id="staminaBarTop" style="
+      width:60px; 
+      height:8px; 
+      background:#333; 
+      border:2px solid #666; 
+      border-radius:4px;
+      overflow:hidden;
+    ">
+      <div id="staminaFill" style="
+        width:100%; 
+        height:100%; 
+        background:linear-gradient(90deg, #00FF88, #FFD700);
+        transition: width 0.2s linear;
+      "></div>
+    </div>
+  </div>
 </div>
 
 <!-- Loading Screen (shows before lobby/game) -->
