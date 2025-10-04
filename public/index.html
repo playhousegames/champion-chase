@@ -4,6 +4,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- SEO Meta Tags -->
+<meta name="description" content="Sushi Sprint - Free multiplayer racing game! Tap to dash as sushi characters, dodge obstacles, collect power-ups. Play with friends online instantly. No download required.">
+<meta name="keywords" content="multiplayer game, mobile game, tap game, racing game, sushi game, online multiplayer, free browser game, party game">
+<meta name="author" content="Sushi Sprint">
+<link rel="canonical" href="https://play.sushisprint.io/">
+
+<!-- Open Graph (Facebook, Discord) -->
+<meta property="og:title" content="Sushi Sprint - Multiplayer Tap Racing Game">
+<meta property="og:description" content="Race against friends as sushi! Fast-paced multiplayer tapping game. Jump hurdles, grab power-ups, and sprint to victory!">
+<meta property="og:image" content="https://play.sushisprint.io/images/social_preview.png">
+<meta property="og:url" content="https://play.sushisprint.io/">
+<meta property="og:type" content="website">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Sushi Sprint - Multiplayer Racing">
+<meta name="twitter:description" content="Race friends as sushi! Tap, jump, and power-up your way to victory.">
+<meta name="twitter:image" content="https://play.sushisprint.io/images/social_preview.png">
+
+<!-- Mobile App Manifest -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#FF3366">
   <title>Sushi Sprint</title>
 
   <!-- Fonts -->
@@ -81,10 +103,195 @@
   background-clip: text;
 }
 
+/* =====================================================
+   PIXEL GRAPHICS CSS - Add to your <style> section
+   ===================================================== */
+
+/* Pixel Power-up Icons */
+.powerup-icon-wasabi {
+  width: 32px;
+  height: 32px;
+  display: inline-block;
+  background:
+    linear-gradient(90deg, transparent 10px, #FF6600 10px, #FF6600 14px, transparent 14px, transparent 18px, #FF6600 18px, #FF6600 22px, transparent 22px) 0 4px,
+    linear-gradient(90deg, transparent 8px, #FFD700 8px, #FFD700 12px, transparent 12px, transparent 14px, #FF6600 14px, #FF6600 18px, transparent 18px, transparent 20px, #FFD700 20px, #FFD700 24px, transparent 24px) 0 8px,
+    linear-gradient(90deg, transparent 6px, #FF6600 6px, #FF6600 26px, transparent 26px) 0 12px,
+    linear-gradient(90deg, transparent 4px, #FFD700 4px, #FFD700 28px, transparent 28px) 0 16px,
+    linear-gradient(90deg, transparent 8px, #00FF88 8px, #00FF88 24px, transparent 24px) 0 20px,
+    linear-gradient(90deg, transparent 6px, #00FF88 6px, #00FF88 26px, transparent 26px) 0 24px,
+    linear-gradient(90deg, transparent 8px, #00FF88 8px, #00FF88 24px, transparent 24px) 0 28px;
+  background-size: 32px 4px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(1px 1px 0 #000);
+  image-rendering: pixelated;
+}
+
+.powerup-icon-freeze {
+  width: 32px;
+  height: 32px;
+  display: inline-block;
+  background:
+    linear-gradient(90deg, transparent 14px, #00FFFF 14px, #00FFFF 18px, transparent 18px) 0 0,
+    linear-gradient(90deg, transparent 10px, #00FFFF 10px, #00FFFF 22px, transparent 22px) 0 4px,
+    linear-gradient(90deg, transparent 6px, #00FFFF 6px, #00FFFF 26px, transparent 26px) 0 8px,
+    linear-gradient(90deg, transparent 4px, #00FFFF 4px, #00FFFF 28px, transparent 28px) 0 12px,
+    linear-gradient(90deg, #00FFFF 0 100%) 0 16px,
+    linear-gradient(90deg, transparent 4px, #00FFFF 4px, #00FFFF 28px, transparent 28px) 0 20px,
+    linear-gradient(90deg, transparent 6px, #00FFFF 6px, #00FFFF 26px, transparent 26px) 0 24px,
+    linear-gradient(90deg, transparent 10px, #00FFFF 10px, #00FFFF 22px, transparent 22px) 0 28px;
+  background-size: 32px 4px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(1px 1px 0 #000);
+  image-rendering: pixelated;
+}
+
+.powerup-icon-dash {
+  width: 32px;
+  height: 32px;
+  display: inline-block;
+  background:
+    linear-gradient(90deg, transparent 12px, #FF00FF 12px, #FF00FF 20px, transparent 20px) 0 0,
+    linear-gradient(90deg, transparent 10px, #FF00FF 10px, #FF00FF 22px, transparent 22px) 0 4px,
+    linear-gradient(90deg, transparent 8px, #FF00FF 8px, #FF00FF 20px, transparent 20px) 0 8px,
+    linear-gradient(90deg, transparent 6px, #FF00FF 6px, #FF00FF 18px, transparent 18px) 0 12px,
+    linear-gradient(90deg, #FF00FF 0 100%) 0 16px,
+    linear-gradient(90deg, transparent 14px, #FF00FF 14px, #FF00FF 26px, transparent 26px) 0 20px,
+    linear-gradient(90deg, transparent 16px, #FF00FF 16px, #FF00FF 28px, transparent 28px) 0 24px,
+    linear-gradient(90deg, transparent 18px, #FF00FF 18px, #FF00FF 26px, transparent 26px) 0 28px;
+  background-size: 32px 4px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(1px 1px 0 #000);
+  image-rendering: pixelated;
+}
+
+.powerup-icon-mega {
+  width: 32px;
+  height: 32px;
+  display: inline-block;
+  background:
+    linear-gradient(90deg, transparent 14px, #FFD700 14px, #FFD700 18px, transparent 18px) 0 0,
+    linear-gradient(90deg, transparent 12px, #FFD700 12px, #FFD700 20px, transparent 20px) 0 4px,
+    linear-gradient(90deg, transparent 8px, #FFD700 8px, #FFD700 24px, transparent 24px) 0 8px,
+    linear-gradient(90deg, #FFD700 0 100%) 0 12px,
+    linear-gradient(90deg, #FFD700 0 100%) 0 16px,
+    linear-gradient(90deg, transparent 4px, #FFD700 4px, #FFD700 14px, transparent 14px, transparent 18px, #FFD700 18px, #FFD700 28px, transparent 28px) 0 20px,
+    linear-gradient(90deg, transparent 8px, #FFD700 8px, #FFD700 12px, transparent 12px, transparent 20px, #FFD700 20px, #FFD700 24px, transparent 24px) 0 24px,
+    linear-gradient(90deg, transparent 10px, #FFD700 10px, #FFD700 12px, transparent 12px, transparent 20px, #FFD700 20px, #FFD700 22px, transparent 22px) 0 28px;
+  background-size: 32px 4px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(1px 1px 0 #000);
+  image-rendering: pixelated;
+}
+
+/* Larger Pixel Arrows for Lane Changes */
+.pixel-arrow-up {
+  width: 48px;
+  height: 48px;
+  display: inline-block;
+  background:
+    linear-gradient(90deg, transparent 18px, #00FFFF 18px, #00FFFF 30px, transparent 30px),
+    linear-gradient(90deg, transparent 12px, #00FFFF 12px, #00FFFF 36px, transparent 36px) 0 6px,
+    linear-gradient(90deg, transparent 6px, #00FFFF 6px, #00FFFF 42px, transparent 42px) 0 12px,
+    linear-gradient(90deg, #00FFFF 0 100%) 0 18px;
+  background-size: 48px 6px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(2px 2px 0 #000);
+  image-rendering: pixelated;
+}
+
+.pixel-arrow-down {
+  width: 48px;
+  height: 48px;
+  display: inline-block;
+  background:
+    linear-gradient(90deg, #00FFFF 0 100%) 0 0,
+    linear-gradient(90deg, transparent 6px, #00FFFF 6px, #00FFFF 42px, transparent 42px) 0 30px,
+    linear-gradient(90deg, transparent 12px, #00FFFF 12px, #00FFFF 36px, transparent 36px) 0 36px,
+    linear-gradient(90deg, transparent 18px, #00FFFF 18px, #00FFFF 30px, transparent 30px) 0 42px;
+  background-size: 48px 6px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(2px 2px 0 #000);
+  image-rendering: pixelated;
+}
+
+/* Lane Change Indicators - Show during race */
+.lane-indicator-top,
+.lane-indicator-bottom {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2500;
+  opacity: 0.7;
+  animation: arrowPulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.lane-indicator-top {
+  top: calc(env(safe-area-inset-top) + 80px);
+}
+
+.lane-indicator-bottom {
+  bottom: calc(env(safe-area-inset-bottom) + 200px);
+}
+
+@keyframes arrowPulse {
+  0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.9; transform: translateX(-50%) scale(1.1); }
+}
+
+/* Fix power-up text rendering */
+.power-up-text,
+.activation-feedback,
+.collection-feedback {
+  font-family: 'Press Start 2P', monospace !important;
+  letter-spacing: 1px !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure pixel graphics stay crisp */
+.powerup-icon,
+.pixel-arrow-up,
+.pixel-arrow-down,
+.stored-icon {
+  image-rendering: pixelated;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* Update stored icon above runner */
 .stored-icon {
   animation: storedPulse 1.5s ease-in-out infinite;
-  box-shadow: 0 0 8px rgba(255, 215, 0, 0.7); /* gold glow */
-  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
+}
+
+
+@keyframes laneArrowSlide {
+  0% {
+    opacity: 1;
+    left: -20px;
+  }
+  100% {
+    opacity: 0;
+    left: -40px;
+  }
+}
+
+.lane-tap-zone {
+  position: absolute;
+  width: 100%;
+  height: 40px;
+  z-index: 10;
+  pointer-events: auto;
+  opacity: 0; /* invisible but tappable */
+}
+
+.lane-tap-zone.up {
+  top: 0;
+}
+
+.lane-tap-zone.down {
+  bottom: 0;
 }
 
 @keyframes instructionPulse {
@@ -366,16 +573,16 @@
     opacity: 0;
     transform: translateX(-50%) scale(0.7) rotate(-5deg);
   }
-  30% {
+  20% {
     opacity: 1;
-    transform: translateX(-50%) scale(1.3) rotate(5deg);
+    transform: translateX(-50%) scale(1.2) rotate(3deg);
   }
-  60% {
+  40% {
     transform: translateX(-50%) scale(1) rotate(0deg);
   }
   100% {
     opacity: 0;
-    transform: translateX(-50%) translateY(-30px) scale(0.5);
+    transform: translateX(-50%) translateY(-40px) scale(0.6);
   }
 }
 
@@ -885,17 +1092,25 @@
     /* ---- Track ---- */
     .track-container { position: relative; width: 100%; height: 320px; overflow: hidden; background: #b7410e; display: none; }
     .track-container.active { display: block; }
-    #track {
-      position: relative; height: 100%;
-      background-image: repeating-linear-gradient(
-        to right,
-        rgba(255,255,255,.18) 0px,
-        rgba(255,255,255,.18) 2px,
-        transparent 2px,
-        transparent 90px
-      );
-    }
-    .lane { position: relative; z-index: 3; height: 25%; border-bottom: 2px dashed rgba(255,255,255,.8); display: flex; align-items: center; }
+/* Track now positions runners absolutely */
+#track {
+  position: relative; 
+  height: 100%;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(255,255,255,.18) 0px,
+    rgba(255,255,255,.18) 2px,
+    transparent 2px,
+    transparent 90px
+  );
+}
+ .lane { 
+  position: relative; 
+  z-index: 1; 
+  height: 25%; 
+  border-bottom: 2px dashed rgba(255,255,255,.8); 
+  pointer-events: none; /* Lanes are just visual guides now */
+}
   /* Add this to your <style> section for better Android compatibility */
 .runner {
   position: absolute; 
@@ -904,16 +1119,15 @@
   width: 32px; 
   height: 32px; 
   image-rendering: pixelated;
-  image-rendering: -webkit-optimize-contrast; /* Safari/Android */
-  image-rendering: crisp-edges; /* Better cross-browser */
-  transition: left .08s linear;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  transition: left .08s linear, transform .3s ease-out; /* Use transform instead of top */
   backface-visibility: hidden; 
   transform: translateZ(0); 
-  will-change: background-image, left;
-  /* Force hardware acceleration on Android */
+  will-change: transform, left;
   -webkit-transform: translateZ(0);
   -webkit-backface-visibility: hidden;
-    background-size: cover !important;
+  background-size: cover !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
 }
@@ -934,7 +1148,16 @@
   opacity: 1 !important;
   /* Keep all background properties */
 }
-    .name-label { position: absolute; top: 2px; left: 10px; font-size: .75rem; color: yellow; }
+    .name-label { 
+  position: absolute; 
+  left: 10px; 
+  font-size: .75rem; 
+  color: yellow;
+  /* Remove top: 2px - we'll set this dynamically */
+  text-shadow: 2px 2px 0 #000;
+  z-index: 5;
+  pointer-events: none;
+}
 
     /* Pixel countdown */
     #countdown {
@@ -1100,7 +1323,7 @@
 <!-- Race HUD (shows only during race) -->
 <div id="statusBar">
   <span class="status-brand">RACE TIME</span>
-  <span class="status-timer">⏱ <span id="timer">00.000</span></span>
+  <span class="status-timer"><span id="timer">00.000</span></span>
   <div id="staminaDisplay" style="display:none;">
     <div style="font-size:0.7rem; margin-bottom:2px;">ENERGY</div>
     <div id="staminaBarTop" style="
@@ -1123,9 +1346,6 @@
 
 <!-- Loading Screen (shows before lobby/game) -->
 
-
-
-
     <!-- SCROLLABLE SCREEN AREA -->
  <div id="lobby" style="display:none;">
         <div class="logo-container" style="margin-top:8px;">
@@ -1140,6 +1360,58 @@
             </h2>
           </div>
         </div>
+
+        <div class="button-demo" style="
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin: 16px 0;
+">
+  <div class="demo-btn-wrapper">
+    <div class="demo-red-btn" style="
+      width: 60px;
+      height: 60px;
+      background: url('images/red_button_not_pressed.png') center/contain no-repeat;
+      animation: demoTapLeft 1.5s ease-in-out infinite;
+    "></div>
+    <div style="font-size: 0.7rem; margin-top: 4px;">LEFT</div>
+  </div>
+  <div class="demo-btn-wrapper">
+    <div class="demo-red-btn" style="
+      width: 60px;
+      height: 60px;
+      background: url('images/red_button_not_pressed.png') center/contain no-repeat;
+      animation: demoTapRight 1.5s ease-in-out infinite;
+    "></div>
+    <div style="font-size: 0.7rem; margin-top: 4px;">RIGHT</div>
+  </div>
+</div>
+
+<div style="font-size: 0.9rem; margin: 12px 0; color: #00FFFF; text-shadow: 2px 2px 0 #000;">
+  TAP LEFT & RIGHT TO SPRINT
+</div>
+<div style="font-size: 0.7rem; margin: 8px 0; color: #FFD700; text-shadow: 1px 1px 0 #000;">
+  TAP ABOVE/BELOW RUNNER TO CHANGE LANES
+</div>
+
+<style>
+@keyframes demoTapLeft {
+  0%, 100% { transform: scale(1); }
+  25% { 
+    transform: scale(0.9); 
+    background-image: url('images/red_button_pressed.png');
+  }
+}
+
+@keyframes demoTapRight {
+  0%, 100% { transform: scale(1); }
+  75% { 
+    transform: scale(0.9);
+    background-image: url('images/red_button_pressed.png');
+  }
+}
+</style>
+
         <h2>JOIN THE RACE</h2>
 
         <input id="roomId" type="hidden" value="">
@@ -1165,26 +1437,28 @@
       <div id="grandstand"></div>
 
       <!-- TRACK -->
-      <div class="track-container">
-        <div id="track">
-          <div id="lane1" class="lane">
-            <div id="runner1" class="runner"></div>
-            <div id="name1" class="name-label"></div>
-          </div>
-          <div id="lane2" class="lane">
-            <div id="runner2" class="runner"></div>
-            <div id="name2" class="name-label"></div>
-          </div>
-          <div id="lane3" class="lane">
-            <div id="runner3" class="runner"></div>
-            <div id="name3" class="name-label"></div>
-          </div>
-          <div id="lane4" class="lane">
-            <div id="runner4" class="runner"></div>
-            <div id="name4" class="name-label"></div>
-          </div>
-        </div>
-      </div>
+<!-- TRACK -->
+<div class="track-container">
+  <div id="track">
+    <!-- Visual lane guides only -->
+    <div id="lane1" class="lane"></div>
+    <div id="lane2" class="lane"></div>
+    <div id="lane3" class="lane"></div>
+    <div id="lane4" class="lane"></div>
+    
+    <!-- All runners as direct children of track -->
+    <div id="runner1" class="runner"></div>
+    <div id="runner2" class="runner"></div>
+    <div id="runner3" class="runner"></div>
+    <div id="runner4" class="runner"></div>
+    
+    <!-- Name labels -->
+    <div id="name1" class="name-label"></div>
+    <div id="name2" class="name-label"></div>
+    <div id="name3" class="name-label"></div>
+    <div id="name4" class="name-label"></div>
+  </div>
+</div>
 
       <!-- RESULTS -->
 <!-- RESULTS -->

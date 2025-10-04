@@ -31,6 +31,9 @@ const BOT_NAMES = [
 const botIntervals = {}; // Store bot tap intervals
 const botFillTimers = {}; // Store timers for filling rooms with bots
 
+// Track player lanes
+const playerLanes = {}; // { roomId_playerId: laneNumber }
+
 // Create a bot player
 function createBot(roomId, slotNum) {
   const room = rooms[roomId];
@@ -439,6 +442,17 @@ socket.on('endRace', (rid) => {
     speeds: room.speeds,
     finishTimes: room.finishTimes
   });
+});
+
+// Lane change
+socket.on('changeLane', ({ roomId: rid, playerId, lane }) => {
+  const room = rooms[rid];
+  if (!room || !room.players[playerId]) return;
+  
+  playerLanes[rid + '_' + playerId] = lane;
+  
+  // Broadcast to other players
+  socket.to(rid).emit('playerChangedLane', { playerId, lane });
 });
 
 

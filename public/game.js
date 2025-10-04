@@ -12,6 +12,8 @@ const socket = io();
 
 const SPEED_MULTIPLIER = 3; // same as server
 
+
+
 /* ------------------------------
    1) GLOBAL STATE
 ------------------------------ */
@@ -38,29 +40,27 @@ var eventListenersSetup = false;
    KANJI EFFECTS SYSTEM - FIXED UNICODE
 ------------------------------ */
 var kanjiEffects = {
-  // Kanji with meanings for different events
   characters: {
-    speed: { kanji: '速', meaning: 'SPEED', color: '#00FF88' },
-    power: { kanji: '力', meaning: 'POWER', color: '#FFD700' },
-    victory: { kanji: '勝', meaning: 'VICTORY', color: '#FF3366' },
-    start: { kanji: '始', meaning: 'START', color: '#FFFFFF' },
-    finish: { kanji: '終', meaning: 'FINISH', color: '#FF3366' },
-    boost: { kanji: '加速', meaning: 'BOOST', color: '#00FFFF' },
-    slow: { kanji: '遅', meaning: 'SLOW', color: '#8B4513' }
+    speed: { kanji: '速', meaning: 'SPEED', color: '#00FF88' },      // 速 = speed
+    power: { kanji: '力', meaning: 'POWER', color: '#FFD700' },      // 力 = power
+    victory: { kanji: '勝', meaning: 'VICTORY', color: '#FF3366' },  // 勝 = victory
+    start: { kanji: '行', meaning: 'GO!', color: '#FFFFFF' },        // 行 = go
+    finish: { kanji: '完', meaning: 'FINISH', color: '#FF3366' },    // 完 = complete
+    boost: { kanji: '加', meaning: 'BOOST', color: '#00FFFF' },      // 加 = add/boost
+    slow: { kanji: '遅', meaning: 'SLOW', color: '#8B4513' }         // 遅 = slow
   },
-
+  
   showKanji: function(type, playerId = null) {
     const char = this.characters[type];
     if (!char) return;
-
+    
     const kanji = document.createElement('div');
     kanji.className = 'kanji-effect';
     kanji.innerHTML = `
       <div class="kanji-main">${char.kanji}</div>
       <div class="kanji-meaning">${char.meaning}</div>
     `;
-
-    // Position based on whether it's for a specific player or global
+    
     if (playerId) {
       const runner = document.getElementById('runner' + playerId);
       if (runner && runner.parentElement) {
@@ -69,26 +69,24 @@ var kanjiEffects = {
           left: ${runner.offsetLeft + 16}px;
           top: ${runner.offsetTop - 40}px;
           color: ${char.color};
-          font-family: 'Noto Sans JP', serif;
+          font-family: 'Press Start 2P', monospace;
           text-align: center;
           font-weight: bold;
           z-index: 200;
           animation: kanjiPlayerPop 2s ease-out forwards;
           pointer-events: none;
         `;
-        
         const track = document.getElementById('track') || runner.parentElement;
         if (track) track.appendChild(kanji);
       }
     } else {
-      // Global/screen-center kanji
       kanji.style.cssText = `
         position: fixed;
         top: 30%;
         left: 50%;
         transform: translateX(-50%);
         color: ${char.color};
-        font-family: 'Noto Sans JP', serif;
+        font-family: 'Press Start 2P', monospace;
         text-align: center;
         font-weight: bold;
         z-index: 9999;
@@ -97,7 +95,7 @@ var kanjiEffects = {
       `;
       document.body.appendChild(kanji);
     }
-
+    
     setTimeout(() => {
       if (kanji && kanji.parentElement) {
         kanji.remove();
@@ -128,42 +126,172 @@ var comboSystem = {
     }
   },
   
-  showCombo: function(playerId, count) {
+showCombo: function(playerId, count) {
+  const player = gameState.players[playerId];
+  if (!player || player.isBot || player.socketId !== socket.id) return;
+  
+  const comboText = document.createElement('div');
+  comboText.className = 'combo-display';
+  comboText.innerHTML = `
+    <div style="font-size: 3rem; color: #FFD700;">${count}</div>
+    <div style="font-size: 1.2rem; color: #FF3366;">COMBO!</div>
+  `;
+  comboText.style.cssText = `
+    position: fixed;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    text-shadow: 3px 3px 0 #000;
+    z-index: 9999;
+    animation: comboPopJapanese 1s ease-out forwards;
+    pointer-events: none;
+  `;
+  
+  document.body.appendChild(comboText);
+  setTimeout(() => comboText.remove(), 1000);
+  
+  if (count >= 10) {
+    document.getElementById('screen').classList.add('screen-shake');
+    setTimeout(() => {
+      document.getElementById('screen').classList.remove('screen-shake');
+    }, 300);
+  }
+  
+  if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+}
+};
+
+
+// Lane system
+// Lane system
+var laneSystem = {
+  lanes: 4,
+  laneHeight: 80,
+  playerLanes: {},
+  
+  initPlayer: function(playerId) {
+    if (!this.playerLanes[playerId]) {
+      this.playerLanes[playerId] = playerId;
+    }
+    this.addLaneTapZones(playerId);
+  },
+  
+  addLaneTapZones: function(playerId) {
     const player = gameState.players[playerId];
     if (!player || player.isBot || player.socketId !== socket.id) return;
     
-    const comboText = document.createElement('div');
-    comboText.className = 'combo-display';
-    comboText.innerHTML = `
-      <div style="font-size: 3rem; color: #FFD700;">${count}</div>
-      <div style="font-size: 1.2rem; color: #FF3366;">COMBO!</div>
-      <div style="font-size: 0.9rem; color: #00FF88;">連続！</div>
-    `;
-    comboText.style.cssText = `
+    // Remove old zones if they exist
+    document.querySelectorAll(`.lane-zone-${playerId}`).forEach(el => el.remove());
+    
+    // Create UP zone (top 35% of screen)
+    const upZone = document.createElement('div');
+    upZone.className = `lane-zone-${playerId}`;
+    upZone.style.cssText = `
       position: fixed;
-      top: 40%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-      font-family: 'Press Start 2P', monospace;
-      text-shadow: 3px 3px 0 #000;
-      z-index: 9999;
-      animation: comboPopJapanese 1s ease-out forwards;
-      pointer-events: none;
+      top: calc(env(safe-area-inset-top) + 60px);
+      left: 0;
+      right: 0;
+      height: 30%;
+      z-index: 2400;
+      pointer-events: auto;
     `;
+    upZone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.changeLane(playerId, 'up');
+    }, { passive: false });
+    document.body.appendChild(upZone);
     
-    document.body.appendChild(comboText);
-    setTimeout(() => comboText.remove(), 1000);
+    // Create DOWN zone (bottom area above controls)
+    const downZone = document.createElement('div');
+    downZone.className = `lane-zone-${playerId}`;
+    downZone.style.cssText = `
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom) + 180px);
+      left: 0;
+      right: 0;
+      height: 30%;
+      z-index: 2400;
+      pointer-events: auto;
+    `;
+    downZone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.changeLane(playerId, 'down');
+    }, { passive: false });
+    document.body.appendChild(downZone);
     
-    // Screen shake on big combos
-    if (count >= 10) {
-      document.getElementById('screen').classList.add('screen-shake');
-      setTimeout(() => {
-        document.getElementById('screen').classList.remove('screen-shake');
-      }, 300);
+    console.log(`Lane tap zones added for player ${playerId}`);
+  },
+  
+  removeTapZones: function(playerId) {
+    document.querySelectorAll(`.lane-zone-${playerId}`).forEach(el => el.remove());
+  },
+  
+  changeLane: function(playerId, direction) {
+    if (!gameState.raceStarted || gameState.raceFinished) return;
+    
+    const currentLane = this.playerLanes[playerId] || playerId;
+    let newLane = currentLane;
+    
+    if (direction === 'up' && currentLane > 1) {
+      newLane = currentLane - 1;
+    } else if (direction === 'down' && currentLane < this.lanes) {
+      newLane = currentLane + 1;
     }
     
-    if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+    if (newLane !== currentLane) {
+      this.playerLanes[playerId] = newLane;
+      this.updateRunnerLane(playerId, newLane);
+      
+      socket.emit('changeLane', { 
+        roomId: gameState.roomId, 
+        playerId: playerId, 
+        lane: newLane 
+      });
+      
+      this.showLaneChangeIndicator(playerId, direction);
+      if (sounds.initialized) sounds.playTap();
+    }
+  },
+  
+  updateRunnerLane: function(playerId, laneNum) {
+    const runner = document.getElementById('runner' + playerId);
+    if (!runner) return;
+    
+    const laneHeight = 80;
+    const topPosition = (laneNum - 1) * laneHeight + 20;
+    runner.style.top = topPosition + 'px';
+    
+    // Update name label too
+    const nameLabel = document.getElementById('name' + playerId);
+    if (nameLabel) {
+      nameLabel.style.top = ((laneNum - 1) * laneHeight + 2) + 'px';
+    }
+  },
+  
+  showLaneChangeIndicator: function(playerId, direction) {
+    const runner = document.getElementById('runner' + playerId);
+    if (!runner) return;
+    
+    const arrow = document.createElement('div');
+    arrow.textContent = direction === 'up' ? '↑' : '↓';
+    arrow.style.cssText = `
+      position: absolute;
+      left: -20px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      color: #FFD700;
+      font-weight: bold;
+      animation: laneArrowSlide 0.3s ease-out forwards;
+      z-index: 100;
+      text-shadow: 2px 2px 0 #000;
+    `;
+    runner.appendChild(arrow);
+    setTimeout(() => arrow.remove(), 300);
   }
 };
 
@@ -489,70 +617,61 @@ function tapPress(e, playerId, btn) {
   e.preventDefault(); 
   e.stopPropagation();
   
-  if (gameState.countdownActive) {
-    console.log('Tapping blocked - countdown in progress');
-    return;
-  }
-
-    if (typeof comboSystem !== 'undefined') {
-    comboSystem.addTap(playerId);
-  }
-  
-  if (playerStates[playerId] && playerStates[playerId].tapsBlocked) {
-    console.log('Taps blocked by SOY_TRAP!');
-    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
-    return;
-  }
-  
+  if (gameState.countdownActive) return;
+  if (playerStates[playerId] && playerStates[playerId].tapsBlocked) return;
   if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) return;
 
   const side = btn.getAttribute('data-side');
   
-  // Register press for defense system only (for blocking attacks)
+  // Register press for defense system only
   if (side && typeof defenseSystem !== 'undefined') {
     defenseSystem.registerPress(playerId, side);
   }
 
-  // Check stamina
-  if (!defenseSystem.spendStamina(playerId)) {
-    console.log("Exhausted! Tap has no effect");
-    return;
-  }
-
-  // Normal tap movement
   btn.classList.add('pressed');
-  var runner = document.getElementById('runner' + playerId);
-  if (runner) {
-    var currentPos = parseFloat(runner.style.left) || 20;
-    var predictedMovement = 8 * 3;
-    var newPosition = currentPos + predictedMovement;
-    runner.style.left = newPosition + 'px';
-  }
-
-  startRunnerAnimation(playerId);
-  socket.emit('playerAction', { roomId: gameState.roomId, playerId });
-  spawnDust(playerId);
-  if (sounds.initialized) sounds.playTap();
-  if (navigator.vibrate) navigator.vibrate(10);
 }
-
 
 function tapRelease(e, playerId, btn) {
   e.preventDefault();
   e.stopPropagation();
 
-  // Remove pressed state from button
-  if (btn) {
-    btn.classList.remove('pressed');
-    btn.classList.remove('active');
-  }
+  if (btn) btn.classList.remove('pressed', 'active');
+
+  // BLOCK all tapping during countdown
+  if (gameState.countdownActive) return;
 
   const side = btn ? btn.getAttribute('data-side') : null;
+  var runner = document.getElementById('runner' + playerId);
+  
+  // Execute normal tap movement
+  if (gameState.raceStarted && !gameState.raceFinished) {
+    if (typeof comboSystem !== 'undefined') {
+      comboSystem.addTap(playerId);
+    }
+    
+    if (!defenseSystem.spendStamina(playerId)) {
+      console.log("Exhausted!");
+      return;
+    }
+    
+    if (runner) {
+      var currentPos = parseFloat(runner.style.left) || 20;
+      var predictedMovement = 8 * 3;
+      var newPosition = currentPos + predictedMovement;
+      runner.style.left = newPosition + 'px';
+    }
+    
+    startRunnerAnimation(playerId);
+    socket.emit('playerAction', { roomId: gameState.roomId, playerId });
+    spawnDust(playerId);
+    if (sounds.initialized) sounds.playTap();
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+  
   if (side && typeof defenseSystem !== 'undefined') {
     defenseSystem.registerRelease(playerId, side);
   }
 
-  const runner = document.getElementById('runner' + playerId);
   if (!runner) return;
 
   clearTimeout(runner._stopTimer);
@@ -726,156 +845,171 @@ function setupKeyboardControls() {
    POWER-UP SYSTEM
 ------------------------------ */
 var powerUpSystem = {
-types: {
-  WASABI_RUSH: { 
-    id: 'wasabi', 
-    name: 'WASABI RUSH', 
-    color: '#00FF88', 
-    icon: '🔥',
-    kanji: '速',
-    duration: 3000,
-    effect: 'speedBoost',
-    description: 'SPEED BOOST'
+  types: {
+    WASABI_RUSH: { 
+      id: 'wasabi', 
+      name: 'WASABI RUSH', 
+      color: '#00FF88', 
+      iconClass: 'powerup-icon-wasabi',  // Changed from icon emoji
+      kanji: 'SPEED',
+      duration: 3000,
+      effect: 'speedBoost',
+      description: 'SPEED BOOST'
+    },
+    FREEZE_BOMB: {
+      id: 'freeze', 
+      name: 'FREEZE BOMB', 
+      color: '#00FFFF', 
+      iconClass: 'powerup-icon-freeze',  // Changed from icon emoji
+      kanji: 'FREEZE',
+      duration: 2500,
+      effect: 'freezeOpponents',
+      description: 'FREEZE ALL'
+    },
+    DASH_ROLL: {
+      id: 'dash', 
+      name: 'DASH', 
+      color: '#FF00FF', 
+      iconClass: 'powerup-icon-dash',  // Changed from icon emoji
+      kanji: 'DASH',
+      duration: 500,
+      effect: 'instantForward',
+      description: 'BURST DASH'
+    },
+    MEGA_BOOST: { 
+      id: 'mega', 
+      name: 'MEGA BOOST', 
+      color: '#FFD700', 
+      iconClass: 'powerup-icon-mega',  // Changed from icon emoji
+      kanji: 'MEGA',
+      duration: 4000,
+      effect: 'megaBoost',
+      description: 'SUPER SPEED'
+    }
   },
-  FREEZE_BOMB: {
-    id: 'freeze', 
-    name: 'FREEZE BOMB', 
-    color: '#00FFFF', 
-    icon: '❄️',
-    kanji: '凍',
-    duration: 2500,
-    effect: 'freezeOpponents',
-    description: 'FREEZE ALL'
-  },
-  DASH_ROLL: {
-    id: 'dash', 
-    name: 'DASH', 
-    color: '#FF00FF', 
-    icon: '⚡',
-    kanji: '疾',
-    duration: 500,
-    effect: 'instantForward',
-    description: 'BURST DASH'
-  },
-  MEGA_BOOST: { 
-    id: 'mega', 
-    name: 'MEGA BOOST', 
-    color: '#FFD700', 
-    icon: '⭐',
-    kanji: '超',
-    duration: 4000,
-    effect: 'megaBoost',
-    description: 'SUPER SPEED'
-  }
-},
 
   playerStorage: {},
   spawnedPowerUps: [],
   nextSpawnDistance: 800,
-  spawnInterval: 800,
+  spawnInterval: 1200,
 
-  createPowerUp: function(type, x, y) {
-    const powerUp = document.createElement('div');
-    powerUp.className = 'power-up';
-    powerUp.dataset.type = type.id;
-    powerUp.dataset.x = x;
-    powerUp.style.left = x + 'px';
-    powerUp.style.top = y + 'px';
-    
-    powerUp.innerHTML = `
-      <div class="powerup-icon" style="font-size: 20px; margin-bottom: 2px;">${type.icon}</div>
-      <div class="powerup-label" style="font-size: 8px; color: ${type.color}; font-weight: bold; text-shadow: 1px 1px 0 #000;">${type.name}</div>
-    `;
-    
-    powerUp.style.cssText += `
-      position: absolute;
-      width: 32px;
-      height: 40px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.8);
-      border: 2px solid ${type.color};
-      border-radius: 8px;
-      animation: powerUpFloat 2s ease-in-out infinite;
-      z-index: 10;
-      box-shadow: 0 0 15px ${type.color};
-      pointer-events: none;
-    `;
-    
-    const track = document.getElementById('track');
-    if (track) track.appendChild(powerUp);
-    
-    this.spawnedPowerUps.push({ element: powerUp, x: x, type: type });
-    return powerUp;
-  },
+createPowerUp: function(type, x, y) {
+  const powerUp = document.createElement('div');
+  powerUp.className = 'power-up';
+  powerUp.dataset.type = type.id;
+  powerUp.dataset.x = x;
+  powerUp.style.left = x + 'px';
+  powerUp.style.top = y + 'px';
+  
+  // Create pixel icon instead of emoji
+  const iconDiv = document.createElement('div');
+  iconDiv.className = 'powerup-icon ' + type.iconClass;
+  iconDiv.style.cssText = 'margin-bottom: 2px;';
+  
+  const label = document.createElement('div');
+  label.className = 'powerup-label';
+  label.textContent = type.name;
+  label.style.cssText = `font-size: 6px; color: ${type.color}; font-weight: bold; text-shadow: 1px 1px 0 #000; font-family: 'Press Start 2P', monospace; letter-spacing: 0px;`;
+  
+  powerUp.appendChild(iconDiv);
+  powerUp.appendChild(label);
+  
+  powerUp.style.cssText += `
+    position: absolute;
+    width: 40px;
+    height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid ${type.color};
+    border-radius: 8px;
+    animation: powerUpFloat 2s ease-in-out infinite;
+    z-index: 10;
+    box-shadow: 0 0 15px ${type.color};
+    pointer-events: none;
+  `;
+  
+  const track = document.getElementById('track');
+  if (track) track.appendChild(powerUp);
+  
+  this.spawnedPowerUps.push({ element: powerUp, x: x, type: type });
+  return powerUp;
+},
 
-  spawnFixedPowerUps: function() {
-    if (!gameState.raceStarted || gameState.raceFinished) return;
+
+spawnFixedPowerUps: function() {
+  if (!gameState.raceStarted || gameState.raceFinished) return;
+  
+  const track = document.getElementById('track');
+  if (!track) return;
+
+  let maxPosition = 0;
+  for (let pid in gameState.positions) {
+    maxPosition = Math.max(maxPosition, gameState.positions[pid] || 0);
+  }
+
+  while (this.nextSpawnDistance < maxPosition + 800) {
+    const types = Object.values(this.types);
+    const x = this.nextSpawnDistance;
+    const laneHeight = track.offsetHeight / 4;
     
-    const track = document.getElementById('track');
-    if (!track) return;
-
-    let maxPosition = 0;
-    for (let pid in gameState.positions) {
-      maxPosition = Math.max(maxPosition, gameState.positions[pid] || 0);
-    }
-
-    while (this.nextSpawnDistance < maxPosition + 800) {
-      const types = Object.values(this.types);
+    // Different power-up for each lane
+    for (let i = 0; i < 4; i++) {
       const randomType = types[Math.floor(Math.random() * types.length)];
-      
-      const x = this.nextSpawnDistance;
-      const laneHeight = track.offsetHeight / 4;
-      
-      for (let i = 0; i < 4; i++) {
-        const y = i * laneHeight + laneHeight/2 - 20;
-        this.createPowerUp(randomType, x, y);
-      }
-      
-      this.nextSpawnDistance += this.spawnInterval;
+      const y = i * laneHeight + laneHeight/2 - 20;
+      this.createPowerUp(randomType, x, y);
     }
-  },
+    
+    this.nextSpawnDistance += this.spawnInterval;
+  }
+},
 
 showActivationButton: function(playerId, type) {
   const btn = document.getElementById('activatePowerUpBtn');
   if (!btn) return;
   
-  // Set the icon
-  btn.textContent = type.icon;
+  // Clear previous content
+  btn.innerHTML = '';
+  
+  // Create pixel icon
+  const iconDiv = document.createElement('div');
+  iconDiv.className = type.iconClass;
+  iconDiv.style.cssText = `
+    width: 48px;
+    height: 48px;
+    transform: scale(1.5);
+  `;
+  btn.appendChild(iconDiv);
+  
   btn.style.display = 'flex';
   
-  // Add instruction text that pulses
-  let instructionText = btn.querySelector('.instruction-text');
-  if (!instructionText) {
-    instructionText = document.createElement('div');
-    instructionText.className = 'instruction-text';
-    instructionText.style.cssText = `
-      position: absolute;
-      top: -50px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.9);
-      color: #FFD700;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      white-space: nowrap;
-      animation: instructionPulse 1s ease-in-out infinite;
-      pointer-events: none;
-      border: 2px solid #FFD700;
-      font-family: 'Press Start 2P', monospace;
-    `;
-    instructionText.textContent = 'TAP TO USE!';
-    btn.appendChild(instructionText);
-  }
+  // Add instruction text
+  let instructionText = document.createElement('div');
+  instructionText.className = 'instruction-text';
+  instructionText.style.cssText = `
+    position: absolute;
+    top: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: #FFD700;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    animation: instructionPulse 1s ease-in-out infinite;
+    pointer-events: none;
+    border: 2px solid #FFD700;
+    font-family: 'Press Start 2P', monospace;
+    letter-spacing: 1px;
+  `;
+  instructionText.textContent = 'TAP TO USE!';
+  btn.appendChild(instructionText);
   
-  // Add down arrow indicator
-// Add side arrow indicator pointing at button
-let arrow = btn.querySelector('.side-arrow');
-if (!arrow) {
-  arrow = document.createElement('div');
+  // Add arrow
+  let arrow = document.createElement('div');
   arrow.className = 'side-arrow';
   arrow.style.cssText = `
     position: absolute;
@@ -888,7 +1022,6 @@ if (!arrow) {
   `;
   arrow.textContent = '👈';
   btn.appendChild(arrow);
-}
   
   // Play attention sound
   if (audioCtx) {
@@ -931,7 +1064,7 @@ if (!arrow) {
   
   btn.addEventListener('click', btn._clickHandler);
   btn.addEventListener('touchstart', btn._clickHandler, { passive: false });
-},
+},  // <-- This is where the function should end
 
 hideActivationButton: function() {
   const btn = document.getElementById('activatePowerUpBtn');
@@ -1011,25 +1144,26 @@ storePowerUp: function(playerId, type) {
     let icon = runner.querySelector('.stored-icon');
     if (!icon) {
       icon = document.createElement('div');
-      icon.className = 'stored-icon';
+      icon.className = 'stored-icon ' + type.iconClass;
       icon.style.cssText = `
         position: absolute;
-        top: -25px;
+        top: -30px;
         left: 50%;
         transform: translateX(-50%);
         width: 24px;
         height: 24px;
-        font-size: 20px;
         z-index: 100;
       `;
       runner.appendChild(icon);
+    } else {
+      // Update existing icon
+      icon.className = 'stored-icon ' + type.iconClass;
     }
-    icon.textContent = type.icon;
   }
 
   if (!player.isBot && player.socketId === socket.id) {
     this.showActivationButton(playerId, type);
-    this.showCollectionFeedback(type);  // This should NOT show kanji
+    this.showCollectionFeedback(type);
   }
 
   console.log(`→ Tap the glowing button to activate!`);
@@ -1069,21 +1203,61 @@ showCollectionFeedback: function(type) {
 
 showActivationFeedback: function(text, color, type) {
   const feedback = document.createElement('div');
-  feedback.innerHTML = `
-    <div style="font-size: 4rem; font-family: 'Noto Sans JP', serif; color: ${color}; text-shadow: 3px 3px 0 #000;">${type.kanji}</div>
-    <div style="font-size: 3rem; margin: 10px 0;">${type.icon}</div>
-    <div style="font-size: 1.5rem; color: ${color}; margin-top: 8px;">${text}</div>
-    <div style="font-size: 0.9rem; color: #FFD700; margin-top: 12px;">ACTIVATED!</div>
+  feedback.className = 'activation-feedback'; // Add this class!
+  
+  // Create icon div
+  const iconDiv = document.createElement('div');
+  iconDiv.className = type.iconClass;
+  iconDiv.style.cssText = `
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 15px auto;
+    transform: scale(2);
   `;
+  
+  // Create kanji div
+  const kanjiDiv = document.createElement('div');
+  kanjiDiv.textContent = type.kanji;
+  kanjiDiv.style.fontFamily = "'Noto Sans JP', sans-serif";
+  kanjiDiv.style.fontSize = '3rem';
+  kanjiDiv.style.color = color;
+  kanjiDiv.style.textShadow = '4px 4px 0 #000';
+  kanjiDiv.style.marginBottom = '15px';
+  
+  // Create text div
+  const textDiv = document.createElement('div');
+  textDiv.textContent = text;
+  textDiv.style.fontFamily = "'Press Start 2P', monospace";
+  textDiv.style.fontSize = '1.1rem';
+  textDiv.style.color = color;
+  textDiv.style.marginTop = '15px';
+  textDiv.style.letterSpacing = '1px';
+  textDiv.style.textShadow = '3px 3px 0 #000';
+  
+  // Create activated div
+  const activatedDiv = document.createElement('div');
+  activatedDiv.textContent = 'ACTIVATED!';
+  activatedDiv.style.fontFamily = "'Press Start 2P', monospace";
+  activatedDiv.style.fontSize = '0.7rem';
+  activatedDiv.style.color = '#FFD700';
+  activatedDiv.style.marginTop = '20px';
+  activatedDiv.style.letterSpacing = '0.5px';
+  activatedDiv.style.textShadow = '2px 2px 0 #000';
+  
+  // Append all elements
+  feedback.appendChild(iconDiv);
+  feedback.appendChild(kanjiDiv);
+  feedback.appendChild(textDiv);
+  feedback.appendChild(activatedDiv);
+  
   feedback.style.cssText = `
     position: fixed;
-    top: 30%;
+    top: 35%;
     left: 50%;
     transform: translateX(-50%);
     text-align: center;
-    font-family: 'Press Start 2P', monospace;
     z-index: 10000;
-    animation: activationFeedbackPop 1.5s ease-out forwards;
+    animation: activationFeedbackPop 1s ease-out forwards;
     pointer-events: none;
     background: rgba(0, 0, 0, 0.95);
     padding: 30px 40px;
@@ -1093,7 +1267,7 @@ showActivationFeedback: function(text, color, type) {
   `;
   
   document.body.appendChild(feedback);
-  setTimeout(() => feedback.remove(), 1500);
+  setTimeout(() => feedback.remove(), 1000);
 },
 
 activateStoredPowerUp: function(playerId) {
@@ -1132,57 +1306,47 @@ activateStoredPowerUp: function(playerId) {
   return true;
 },
 
-
-
-  showActivationFeedback: function(text, color) {
-    const feedback = document.createElement('div');
-    feedback.innerHTML = `
-      <div style="font-size: 3rem; margin-bottom: 10px;">⚡</div>
-      <div style="font-size: 1.8rem; color: ${color};">${text}</div>
-      <div style="font-size: 1rem; color: #FFD700; margin-top: 8px;">ACTIVATED!</div>
-    `;
-    feedback.style.cssText = `
-      position: fixed;
-      top: 30%;
-      left: 50%;
-      transform: translateX(-50%);
-      text-align: center;
-      font-family: 'Press Start 2P', monospace;
-      text-shadow: 4px 4px 0 #000;
-      z-index: 10000;
-      animation: activationFeedbackPop 1.5s ease-out forwards;
-      pointer-events: none;
-      background: rgba(0, 0, 0, 0.9);
-      padding: 30px 40px;
-      border: 4px solid ${color};
-      border-radius: 15px;
-      box-shadow: 0 0 40px ${color};
-    `;
-    
-    document.body.appendChild(feedback);
-    setTimeout(() => feedback.remove(), 1500);
-  },
-
 activatePowerUpEffect: function(playerId, type) {
+  console.log('Executing power-up effect:', type.effect, 'for player', playerId);
+  
   switch(type.effect) {
     case 'speedBoost':
       this.applySpeedBoost(playerId);
+      if (typeof kanjiEffects !== 'undefined') {
+        kanjiEffects.showKanji('speed', playerId);
+      }
       break;
-    case 'freezeOpponents':  // NEW
-      this.freezeOpponents(playerId);
-      break;
-    case 'instantForward':
-      this.instantForward(playerId);
-      break;
+      
     case 'megaBoost':
       this.applyMegaBoost(playerId);
+      if (typeof kanjiEffects !== 'undefined') {
+        kanjiEffects.showKanji('power', playerId);
+      }
       break;
+      
+    case 'freezeOpponents':
+      this.freezeOpponents(playerId);
+      break;
+      
+    case 'instantForward':
+      this.instantForward(playerId);
+      if (typeof kanjiEffects !== 'undefined') {
+        kanjiEffects.showKanji('boost', playerId);
+      }
+      break;
+      
+    default:
+      console.warn('Unknown power-up effect:', type.effect);
   }
+  
+  // Sound and haptic feedback
+  this.playPowerUpSound('activate');
+  if (navigator.vibrate) {
+    navigator.vibrate([100, 50, 100]);
+  }
+},
 
-    if (typeof crowdSystem !== 'undefined') {
-      crowdSystem.onPowerUp(playerId);
-    }
-  },
+
 
   freezeOpponents: function(playerId) {
   const collector = gameState.players[playerId];
@@ -2586,6 +2750,11 @@ socket.on('resetStarting', function() {
   }
 });
 
+socket.on('playerChangedLane', ({ playerId, lane }) => {
+  laneSystem.playerLanes[playerId] = lane;
+  laneSystem.updateRunnerLane(playerId, lane);
+});
+
 socket.on('roomAssigned', function (data) {
   if (!data) return;
   gameState.roomId = data.roomId;
@@ -2873,6 +3042,9 @@ function setupLanes() {
     var nameLabel = document.getElementById('name' + i);
 
     if (gameState.players[i]) {
+      laneSystem.initPlayer(i);
+      laneSystem.updateRunnerLane(i, i);
+      
       if (lane) lane.style.display = 'flex';
       if (runner) {
         var startPos = 20;
@@ -2884,31 +3056,27 @@ function setupLanes() {
           runner.classList.add('bot-runner');
         }
 
-        // REPLACE THE ENTIRE SPRITE LOADING SECTION WITH THIS:
+        // Clear and reload sprite
         runner.style.backgroundImage = '';
         delete runner.dataset.frames;
         delete runner.dataset.currentFrame;
         
-        // Force reload sprite for this player
+        // Force reload sprite
         (function(pid, runnerEl) {
-  setTimeout(function() {
-    var character = gameGraphics.characters[pid];
-    if (character && character.frames && character.frames.length > 0) {
-      // Use runnerEl (captured) not runner (wrong reference)
-      runnerEl.dataset.frames = JSON.stringify(character.frames);
-      runnerEl.dataset.currentFrame = '0';
-      runnerEl.style.backgroundImage = 'url(' + character.frames[0] + ')';
-      runnerEl.style.backgroundSize = 'cover';
-      runnerEl.style.backgroundRepeat = 'no-repeat';
-      runnerEl.style.backgroundPosition = 'center';
-      runnerEl.style.width = '32px';
-      runnerEl.style.height = '32px';
-      console.log('Sprite reloaded for player', pid);
-    } else {
-      console.warn('No sprite data for player', pid);
-    }
-  }, 200);
-})(i, runner);  // Pass i and runner here
+          setTimeout(function() {
+            var character = gameGraphics.characters[pid];
+            if (character && character.frames && character.frames.length > 0) {
+              runnerEl.dataset.frames = JSON.stringify(character.frames);
+              runnerEl.dataset.currentFrame = '0';
+              runnerEl.style.backgroundImage = 'url(' + character.frames[0] + ')';
+              runnerEl.style.backgroundSize = 'cover';
+              runnerEl.style.backgroundRepeat = 'no-repeat';
+              runnerEl.style.width = '32px';
+              runnerEl.style.height = '32px';
+              console.log('Sprite reloaded for player', pid);
+            }
+          }, 200);
+        })(i, runner);
 
         if (!playerStates[i]) {
           playerStates[i] = {
@@ -2922,7 +3090,7 @@ function setupLanes() {
         }
         playerStates[i].position = pos;
       }
-      if (nameLabel) {
+            if (nameLabel) {
         var playerName = (gameState.players[i].name || ('Runner ' + i)).toUpperCase();
         if (gameState.players[i].isBot) {
           playerName += ' [BOT]';
@@ -2930,6 +3098,11 @@ function setupLanes() {
         }
         nameLabel.textContent = playerName;
         nameLabel.style.color = getPlayerColor(i);
+        
+        // ✅ ADD THIS - Position name label in same lane as runner
+        var laneHeight = 80;
+        var topPosition = (i - 1) * laneHeight + 2; // 2px from lane top
+        nameLabel.style.top = topPosition + 'px';
       }
     } else {
       if (lane) lane.style.display = 'none';
@@ -3030,8 +3203,19 @@ function startCountdown() {
   var count = 3;
   var countdownEl = document.getElementById('countdown');
   if (!countdownEl) return;
+  
+const tips = {
+  3: "TAP LEFT & RIGHT TO SPRINT",
+  2: "TAP ABOVE/BELOW TO CHANGE LANES",
+  1: "FASTEST TAPPER WINS!"
+};
+  
   countdownEl.style.display = 'block';
-  countdownEl.textContent = String(count);
+  countdownEl.innerHTML = `
+    <div style="font-size: 3.2rem;">${count}</div>
+    <div style="font-size: 1rem; margin-top: 10px; color: #FFD700;">${tips[count]}</div>
+  `;
+  
   var interval = setInterval(function () {
     if (gameState.isResetting) {
       clearInterval(interval);
@@ -3041,7 +3225,10 @@ function startCountdown() {
     }
     count--;
     if (count > 0) {
-      countdownEl.textContent = String(count);
+      countdownEl.innerHTML = `
+        <div style="font-size: 3.2rem;">${count}</div>
+        <div style="font-size: 1rem; margin-top: 10px; color: #FFD700;">${tips[count]}</div>
+      `;
       
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
@@ -3050,6 +3237,7 @@ function startCountdown() {
       if (sounds.initialized) sounds.playCountdown();
     } else if (count === 0) {
       countdownEl.style.display = 'none';
+      // rest of your existing GO! logic
       
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
@@ -3163,7 +3351,7 @@ function updateGame() {
   if (myPlayerId) {
     var myRunner = document.getElementById('runner' + myPlayerId);
     if (myRunner) {
-      var screenOffset = container.offsetWidth * 0.3;
+      var screenOffset = container.offsetWidth * 0.2;
       var currentRunnerX = myRunner.offsetLeft;
       var newOffset = Math.max(0, currentRunnerX - screenOffset);
       cameraState.cameraOffset = Math.min(newOffset, gameState.trackWidth - container.offsetWidth);
@@ -3244,6 +3432,9 @@ function showResults() {
   if (gameState.isResetting) return;
 
   console.log('Showing results with finishTimes:', gameState.finishTimes);
+    if (typeof powerUpSystem !== 'undefined') {
+    powerUpSystem.hideActivationButton();
+  }
 
   var mobileControls = document.getElementById('mobileControls');
   var track = document.getElementById('track');
