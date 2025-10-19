@@ -33,6 +33,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 
+<script>
+  // Ensure the pixel font is loaded before we show animated text
+  (function(){
+    if (!('fonts' in document)) return; // older browsers
+    document.fonts.load('16px "Press Start 2P"').then(function(){
+      document.documentElement.classList.add('ps2p-ready');
+    });
+  })();
+</script>
+
 
 
   <style>
@@ -164,6 +174,28 @@
   image-rendering: pixelated;
 }
 
+@keyframes powerupSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes powerupSlideOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+
 .powerup-icon-mega {
   width: 32px;
   height: 32px;
@@ -240,14 +272,35 @@
 }
 
 /* Fix power-up text rendering */
+/* Ensure the pixel font is actually used for power-up text */
 .power-up-text,
 .activation-feedback,
-.collection-feedback {
+.collection-feedback,
+.block-feedback,
+.kanji-effect .kanji-meaning {
   font-family: 'Press Start 2P', monospace !important;
-  letter-spacing: 1px !important;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-weight: 400 !important;      /* Press Start 2P only ships a single weight */
+  font-style: normal !important;
+  -webkit-font-smoothing: none;     /* crisper pixel look */
+  -moz-osx-font-smoothing: auto;
+  text-rendering: optimizeSpeed;
 }
+
+/* Also catch likely selectors for the power-up NAME itself */
+.power-up-name,
+.powerup-name,
+#powerUpName,
+[data-powerup-name] {
+  font-family: 'Press Start 2P', monospace !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+
 
 /* Ensure pixel graphics stay crisp */
 .powerup-icon,
@@ -414,7 +467,38 @@
   100% { opacity: 1; }
 }
 
+/* Universal pixel font utility */
+.pixel-font {
+  font-family: 'Press Start 2P', monospace !important;
+  font-weight: 400 !important;      /* Press Start 2P ships one weight */
+  font-style: normal !important;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: optimizeSpeed;
+  letter-spacing: 1px;              /* matches your style */
+}
 
+/* Optional: prevent flash of fallback for critical labels */
+:not(.ps2p-ready) .pixel-font { visibility: hidden; }
+
+
+/* Country selector styling */
+#countrySelect {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.7rem !important;
+  padding: 8px !important;
+  border: 2px solid #222 !important;
+  border-radius: 8px !important;
+  background: #000 !important;
+  color: #fff !important;
+}
+
+#countrySelect option {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.7rem !important;
+  background: #000 !important;
+  color: #fff !important;
+}
 
 .runner .stamina-bar {
   height: 5px;
@@ -430,7 +514,7 @@
 .japanese-subtitle h2 {
   position: relative;
   font-family: 'Noto Sans JP', serif;
-  font-size: clamp(1.2rem, 4vw, 2rem);
+  font-size: clamp(1.3rem, 4vw, 2rem);
   font-weight: bold;
 }
 
@@ -680,6 +764,59 @@
   pointer-events: none;
   white-space: nowrap;
 }
+
+ /* Center + pin the kanji wrapper so keyframes can't push it offscreen */
+.kanji-effect {
+  position: fixed !important;
+  left: 50% !important;
+  top: calc(40% + env(safe-area-inset-top)) !important; /* ~center; tweak if needed */
+  transform: translate(-50%, -50%) !important;
+  z-index: 10000 !important;
+  pointer-events: none;
+  width: max-content;
+  text-align: center;
+  will-change: transform, opacity;
+  transform-origin: 50% 50%;
+}
+
+/* Inner elements (you already had these; keep them) */
+.kanji-effect .kanji-main {
+  font-size: 3rem;
+  text-shadow: 3px 3px 0 #000, -2px -2px 0 #000;
+  margin-bottom: 5px;
+}
+.kanji-effect .kanji-meaning {
+  font-size: 0.8rem;
+  font-family: 'Press Start 2P', monospace;
+  text-shadow: 1px 1px 0 #000;
+  letter-spacing: 1px;
+}
+
+/* Keep power-up label centered the same way */
+.power-up-text {
+  position: fixed !important;
+  left: 50% !important;
+  top: calc(40% + env(safe-area-inset-top)) !important;
+  transform: translate(-50%, -50%) !important;
+  color: inherit;
+  font-weight: bold;
+  font-size: 18px;
+  animation: powerUpTextFloat 2s ease-out forwards;
+  z-index: 9999 !important;
+  text-shadow:
+    2px 2px 0 #000,
+    -2px -2px 0 #000,
+    2px -2px 0 #000,
+    -2px 2px 0 #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+@keyframes comboPopJapanese {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-10deg); }
+  50%  { opacity: 1; transform: translate(-50%, -50%) scale(1.3) rotate(5deg); }
+  100% { opacity: 0; transform: translate(-50%, -60%) scale(0.5) rotate(0deg); }
+}
+
 
 /* Simultaneous Press Warning Styles */
 .defense-warning {
@@ -1355,8 +1492,8 @@
           </h1>
           <div class="japanese-subtitle">
             <h2>
-              <span class="japanese-shadow">寿司スプリント</span>
-              <span class="japanese-main">寿司スプリント</span>
+              <span class="japanese-shadow">寿司短距離走</span>
+              <span class="japanese-main">寿司短距離走</span>
             </h2>
           </div>
         </div>
@@ -1422,6 +1559,21 @@
           <div id="joinContainer" style="margin-top:1rem;"></div>
           <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
         </div>
+
+        <!-- Country selector UI -->
+<!-- Clean flag selector -->
+<div style="display:flex; gap:8px; align-items:center; margin:6px 0; flex-wrap:wrap;">
+  <label for="countrySelect" style="color:#fff;font-size:.8rem;">Flag:</label>
+  <select id="countrySelect" style="flex:1; font-size:1rem; padding:8px; border:2px solid #222; border-radius:8px;">
+    <option value="">None / Neutral</option>
+  </select>
+  <span id="countryPreview" style="font-size:1.5rem; min-width:1.6rem; text-align:center;">🇺🇳</span>
+  <label style="color:#ccc;font-size:.85rem;display:flex;gap:6px;align-items:center;">
+    <input id="hideFlagsToggle" type="checkbox"> Hide flags
+  </label>
+</div>
+
+
 
         <!-- Bottom dock -->
         <div id="lobbyDock">
@@ -1547,6 +1699,131 @@
     }
   });
 </script>
+
+<script>
+// --- Helper to turn ISO code -> flag emoji ---
+function isoToFlagEmoji(cc) {
+  try {
+    if (!cc || typeof cc !== 'string') return '🇺🇳';
+    cc = cc.toUpperCase();
+    if (!/^[A-Z]{2}$/.test(cc)) return '🇺🇳';
+    const A = 0x1F1E6;
+    return String.fromCodePoint(A + (cc.charCodeAt(0) - 65), A + (cc.charCodeAt(1) - 65));
+  } catch { return '🇺🇳'; }
+}
+
+// --- Country list (trimmed ISO-3166 sample; add more as needed) ---
+const ISO_COUNTRIES = [
+  ["UN","United Nations"],["US","United States"],["GB","United Kingdom"],
+  ["JP","Japan"],["FR","France"],["DE","Germany"],["SE","Sweden"],
+  ["KR","South Korea"],["CN","China"],["IN","India"],["BR","Brazil"],
+  ["CA","Canada"],["AU","Australia"],["ES","Spain"],["IT","Italy"],
+  ["NL","Netherlands"],["PL","Poland"],["NO","Norway"],["FI","Finland"],
+  ["IE","Ireland"],["PT","Portugal"],["MX","Mexico"]
+];
+
+// --- Setup dropdown ---
+(function initCountryDropdown(){
+  const sel   = document.getElementById('countrySelect');
+  const prev  = document.getElementById('countryPreview');
+  const hide  = document.getElementById('hideFlagsToggle');
+
+  // Populate dropdown
+  ISO_COUNTRIES.forEach(([code,name])=>{
+    const o = document.createElement('option');
+    o.value = code;
+    o.textContent = isoToFlagEmoji(code) + ' ' + name;
+    sel.appendChild(o);
+  });
+
+  // Load saved
+  let saved = localStorage.getItem('sushiCountry') || '';
+  if (saved) {
+    sel.value = saved;
+    prev.textContent = isoToFlagEmoji(saved);
+  }
+
+  // Change listener
+  sel.addEventListener('change', () => {
+    const code = sel.value.toUpperCase();
+    localStorage.setItem('sushiCountry', code);
+    prev.textContent = isoToFlagEmoji(code);
+  });
+
+  // Hide flag toggle
+  const savedHide = localStorage.getItem('sushiHideFlags') === '1';
+  hide.checked = savedHide;
+  hide.addEventListener('change', () => {
+    localStorage.setItem('sushiHideFlags', hide.checked ? '1' : '0');
+  });
+})();
+</script>
+
+<script>
+(function ensurePowerupNamesUsePixelFont() {
+  // 1) If your power-up system uses predictable selectors, list them here:
+  const KNOWN_SELECTORS = [
+    '.power-up-text',
+    '.powerup-name',
+    '.power-up-name',
+    '#powerUpName',
+    '.activation-feedback',
+    '.collection-feedback'
+  ];
+
+  // 2) If names are plain text nodes, match common power-up names:
+  const POWERUP_NAMES = ['Dash','Freeze','Wasabi','Mega','Shield','Boost','Slow','Turbo','Sprint'];
+
+  function apply(el) {
+    if (!el) return;
+    el.classList.add('pixel-font');
+    // Common style corrections for injected labels:
+    el.style.textTransform = el.style.textTransform || 'uppercase';
+    el.style.whiteSpace = el.style.whiteSpace || 'nowrap';
+  }
+
+  // Apply to known selectors immediately
+  KNOWN_SELECTORS.forEach(sel => {
+    document.querySelectorAll(sel).forEach(apply);
+  });
+
+  // Heuristic pass: any element currently showing a known power-up name
+  POWERUP_NAMES.forEach(name => {
+    const xpath = `//*[normalize-space(text())='${name}']`;
+    const snap = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    for (let i = 0; i < snap.snapshotLength; i++) apply(snap.snapshotItem(i));
+  });
+
+  // Observe future injections (e.g., when you pick up/activate a power-up)
+  const mo = new MutationObserver(muts => {
+    for (const m of muts) {
+      // New nodes
+      m.addedNodes && m.addedNodes.forEach(n => {
+        if (!(n instanceof HTMLElement)) return;
+
+        // Known selectors
+        KNOWN_SELECTORS.forEach(sel => {
+          if (n.matches && n.matches(sel)) apply(n);
+          n.querySelectorAll && n.querySelectorAll(sel).forEach(apply);
+        });
+
+        // Text heuristics
+        const txt = (n.textContent || '').trim();
+        if (POWERUP_NAMES.includes(txt)) apply(n);
+        // Also search within subtree for power-up names
+        POWERUP_NAMES.forEach(name => {
+          const x = document.evaluate(`.//*[normalize-space(text())='${name}']`, n, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          for (let i = 0; i < x.snapshotLength; i++) apply(x.snapshotItem(i));
+        });
+      });
+    }
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+
+
+
 
 
     <!-- Google Adsense -->

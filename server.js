@@ -23,11 +23,6 @@ app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html
 const rooms = {};
 
 // ---- Bot System ----
-const BOT_NAMES = [
-  'Turbo Bot', 'Speed Bot', 'Fast Bot', 'Quick Bot',
-  'Robo Racer', 'CPU Sprinter', 'AI Runner', 'Bot Dasher'
-];
-
 const botIntervals = {}; // Store bot tap intervals
 const botFillTimers = {}; // Store timers for filling rooms with bots
 
@@ -39,7 +34,9 @@ function createBot(roomId, slotNum) {
   const room = rooms[roomId];
   if (!room || room.players[slotNum]) return null;
 
-  const botName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)] + ' ' + slotNum;
+  // Use the sushi naming system so bots get proper avatars
+  // This generates names like "Speedy Tamago 42", "Flying Salmon 67", etc.
+  const botName = generatePlayerName(slotNum);
   const botId = 'bot_' + slotNum + '_' + Date.now();
 
   room.players[slotNum] = {
@@ -304,84 +301,75 @@ io.on('connection', (socket) => {
   });
 
   // Player claims a runner slot and joins the room roster
-  socket.on('joinRoom', (data) => {
-    const { roomId, playerNum } = data;
-    // Prefer server-assigned room (from quickRace); fall back to provided; final fallback dev default
-    const rid = ((socket.roomId || roomId || 'ABC124') + '').toUpperCase();
+// Player claims a runner slot and joins the room roster
+socket.on('joinRoom', (data = {}) => {
+  const { roomId, playerNum, countryCode } = data;
+  const rid = ((socket.roomId || roomId || 'ABC123') + '').toUpperCase();
 
-    // Create room if needed (should exist if quickRace was used)
-    if (!rooms[rid]) {
-      rooms[rid] = {
-        players: {},
-        positions: {},
-        speeds: {},
-        gameStarted: false,
-        finishTimes: {},
-        isResetting: false,
-        hostSocketId: null,
-        tapStreaks: {},
-        stopTimers: {}
-      };
-    }
-    const room = rooms[rid];
-    if (room.isResetting) return;
+  // --- Ensure room exists (should exist if quickRace was used) ---
+  if (!rooms[rid]) {
+    rooms[rid] = {
+      players: {},
+      positions: {},
+      speeds: {},
+      gameStarted: false,
+      finishTimes: {},
+      isResetting: false,
+      hostSocketId: null,
+      tapStreaks: {},
+      stopTimers: {}
+    };
+  }
+  const room = rooms[rid];
+  if (room.isResetting) return;
 
-    // Capacity check (4 max)
-    if (Object.keys(room.players).length >= MAX_PLAYERS) {
-      socket.emit('roomFull', { max: MAX_PLAYERS });
-      return;
-    }
+  // --- Capacity guard ---
+  if (Object.keys(room.players).length >= MAX_PLAYERS) {
+    socket.emit('roomFull', { max: MAX_PLAYERS });
+    return;
+  }
 
-    // Slot guard: if another socket already owns this playerNum, reject
-    const existing = room.players[playerNum];
-    if (existing && existing.socketId !== socket.id && !existing.isBot) {
-      socket.emit('slotTaken', { playerNum });
-      return;
-    }
+  // --- Slot guard ---
+  const existing = room.players[playerNum];
+  if (existing && existing.socketId !== socket.id && !existing.isBot) {
+    socket.emit('slotTaken', { playerNum });
+    return;
+  }
 
-    // Server assigns a *safe* fun name (ignores client-provided text)
-    const safeName = generatePlayerName(playerNum);
+  // --- Validate country (2-letter ISO) or default to neutral UN ---
+  const cc =
+    typeof countryCode === 'string' && /^[A-Z]{2}$/.test(countryCode.toUpperCase())
+      ? countryCode.toUpperCase()
+      : 'UN';
 
-    // Register / update player
-    room.players[playerNum]   = { name: safeName, id: playerNum, socketId: socket.id };
-    room.positions[playerNum] = 20;
-    room.speeds[playerNum]    = 0;
+  // --- Assign safe name & register player ---
+  const safeName = generatePlayerName(playerNum);
+  room.players[playerNum]   = { name: safeName, id: playerNum, socketId: socket.id, country: cc };
+  room.positions[playerNum] = 20;
+  room.speeds[playerNum]    = 0;
 
-    // First actual player becomes host
-    if (!room.hostSocketId) room.hostSocketId = socket.id;
+  // --- Host assignment (first human) ---
+  if (!room.hostSocketId) room.hostSocketId = socket.id;
 
-    socket.join(rid);
-    socket.roomId = rid;
+  // --- Join socket room & broadcast roster ---
+  socket.join(rid);
+  socket.roomId = rid;
 
-    // Broadcast updated roster (include host + caps)
-    io.to(rid).emit('playerJoined', {
-      players: room.players,
-      positions: room.positions,
-      speeds: room.speeds,
-      hostSocketId: room.hostSocketId,
-      maxPlayers: MAX_PLAYERS,
-      minToStart: MIN_TO_START
-    });
-
-    // Auto-start when the room is full (still allow host-start for 2–3)
-    if (Object.keys(room.players).length === MAX_PLAYERS && !room.gameStarted) {
-      startGame(rid);
-    }
+  io.to(rid).emit('playerJoined', {
+    players: room.players,
+    positions: room.positions,
+    speeds: room.speeds,
+    hostSocketId: room.hostSocketId,
+    maxPlayers: MAX_PLAYERS,
+    minToStart: MIN_TO_START
   });
 
-  // Host starts the race (needs at least 2 players)
-  socket.on('startGame', (rid) => {
-    const room = rooms[rid];
-    if (!room || room.gameStarted) return;
-
-    const playerCount = Object.keys(room.players).length;
-    if (playerCount < 2) {
-      socket.emit('errorMessage', { text: 'Need at least 2 players to start.' });
-      return;
-    }
-
+  // --- Autostart if full ---
+  if (Object.keys(room.players).length === MAX_PLAYERS && !room.gameStarted) {
     startGame(rid);
-  });
+  }
+});
+
 
   // Tap action (boost based on tap cadence) + ANIMATION SYNC
 // Tap action (boost based on tap cadence) + ANIMATION SYNC
