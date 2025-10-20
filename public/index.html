@@ -45,6 +45,8 @@
 
 
 
+
+
   <style>
 :root {
   /* Sushi Sprint palette */
@@ -59,7 +61,115 @@
 }
 
 /* use the new bg var instead of the old purple */
+/* Countdown display in lobby */
+/* Base (hidden by default) */
+#lobbyCountdown {
+  display: none;
+  margin: 16px auto;
+  padding: 16px 24px;
+  background: rgba(255, 215, 0, 0.15);
+  border: 3px solid var(--golden-tamago);
+  border-radius: 12px;
+  text-align: center;
+  max-width: 280px;
+}
 
+/* Visible during countdown (8..1) */
+#lobbyCountdown.active {
+  display: block;
+  animation: countdownPulse 1s ease-in-out infinite;
+}
+
+@keyframes victoryKanjiFast {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.3) translateY(0);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.3) translateY(0);
+  }
+  40% {
+    transform: translateX(-50%) scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.7) translateY(-100px);
+  }
+}
+
+@keyframes playAgainPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 4px 4px 0 #000;
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 6px 6px 0 #000;
+  }
+}
+
+#results .play-button {
+  animation: playAgainPulse 2s ease-in-out infinite;
+}
+
+/* Last 3 seconds */
+#lobbyCountdown.final3 {
+  border-color: #FF3366;
+  background: rgba(255, 51, 102, 0.15);
+}
+
+/* On GO */
+#lobbyCountdown.go {
+  border-color: #00FF88;
+  background: rgba(0, 255, 136, 0.2);
+  animation: none; /* stop pulsing when starting */
+}
+
+/* Optional: make the number big & centered */
+#lobbyCountdown .countdown-timer {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Pulse keyframes */
+@keyframes countdownPulse {
+  0%   { transform: scale(1);   }
+  50%  { transform: scale(1.04);}
+  100% { transform: scale(1);   }
+}
+
+/* Nice-to-have: respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  #lobbyCountdown.active { animation: none; }
+}
+
+
+.countdown-text {
+  font-size: 0.8rem;
+  color: var(--pure-rice-white);
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.countdown-timer {
+  font-size: 2rem;
+  color: var(--golden-tamago);
+  font-weight: bold;
+  text-shadow: 3px 3px 0 #000;
+}
+
+@keyframes countdownPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  }
+}
 
 
     html, body {
@@ -1192,21 +1302,25 @@
     #playerCounter { font-size: 1rem; color: #00ffcc; text-shadow: 2px 2px #000; margin-top: 0.5rem; }
 
     /* Lobby dock */
-    #lobbyDock {
-      position: sticky; bottom: 0; margin-top: auto;
-      padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
-      /*background: linear-gradient(180deg, rgba(11,9,18,0) 0%, rgba(11,9,18,.82) 40%, rgba(11,9,18,.95) 100%);*/
-      border-top: 2px solid rgba(255,255,255,.06);
-      display: flex; justify-content: center; gap: 14px;
-      z-index: 2600;
-    }
+#lobbyDock {
+  position: sticky; 
+  bottom: 0; 
+  margin-top: auto;
+  padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+  border-top: 2px solid rgba(255,255,255,.06);
+  display: flex; 
+  flex-direction: column;  /* Changed from default row to column */
+  align-items: center;      /* Center the buttons */
+  gap: 14px;
+  z-index: 2600;
+}
 
     /* Homepage-style “play” button (replaces image buttons) */
     .play-button {
       background: var(--hot-tuna-red);
       color: var(--pure-rice-white);
       border: 4px solid var(--ocean-blue);
-      padding: 16px 24px;
+      padding: 6px 24px;
       font-family: 'Press Start 2P', monospace;
       font-size: 14px;
       text-transform: uppercase; letter-spacing: .1em;
@@ -1227,12 +1341,25 @@
     #grandstand.active { display: block; }
 
     /* ---- Track ---- */
-    .track-container { position: relative; width: 100%; height: 320px; overflow: hidden; background: #b7410e; display: none; }
-    .track-container.active { display: block; }
+    .track-container { 
+  position: relative; 
+  width: 100%; 
+  height: 320px; 
+  overflow: hidden; 
+  background: #b7410e; 
+  display: none; 
+}
+.track-container.active { 
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
 /* Track now positions runners absolutely */
 #track {
   position: relative; 
   height: 100%;
+  width: 12000px; /* Fallback only */
   background-image: repeating-linear-gradient(
     to right,
     rgba(255,255,255,.18) 0px,
@@ -1240,7 +1367,10 @@
     transparent 2px,
     transparent 90px
   );
+  display: block; /* ✅ force visible instead of none */
 }
+
+
  .lane { 
   position: relative; 
   z-index: 1; 
@@ -1312,9 +1442,28 @@
     .runner.winner { animation: winnerJump .6s ease-in-out infinite; }
     @keyframes winnerJump { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
 
-    /* Finish line */
-    #finishLine { position: absolute; top: 0; height: 100%; width: 14px; background: repeating-linear-gradient(to bottom,#000 0 12px,#fff 12px 24px); box-shadow: 0 0 8px rgba(255,255,255,.5); z-index: 1; pointer-events: none; }
-    #finishLine .flag { position: absolute; top: -26px; left: -18px; font-size: 24px; z-index: 1; text-shadow: 2px 2px 0 #000; }
+/* Finish line – float above lanes, under runners */
+#finishLine{
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 14px;
+  background: repeating-linear-gradient(to bottom,#000 0 12px,#fff 12px 24px);
+  box-shadow: 0 0 8px rgba(255,255,255,.5);
+  z-index: 2;             /* was 1; now above .lane (z:1) and below .runner (z:3) */
+  pointer-events: none;
+  display: block;         /* force visible */
+  opacity: 1;             /* belt-and-braces */
+}
+#finishLine .flag{
+  position: absolute;
+  top: -26px;
+  left: -18px;
+  font-size: 24px;
+  z-index: 3;             /* keep the flag above the pole */
+  text-shadow: 2px 2px 0 #000;
+}
+
 
     /* ---- Mobile controls: use your NEW red buttons ---- */
     .mobile-controls {
@@ -1350,14 +1499,56 @@
     }
 
     /* Results */
-    #results {
-      display: none; height: auto; min-height: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 2rem 1rem; background: #222; color: #fff; text-align: center;
-    }
-    #results.active { display: flex; }
-    #adSlot { margin-top: 1rem; text-align: center; }
-    #results h2 { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+/* Results */
+#results {
+  display: none;                  /* hidden by default */
+  position: relative;             /* create stacking context for children */
+  z-index: 1000;                  /* sit above ads or canvases */
+  height: auto;
+  min-height: 0;
+  padding: 2rem 1rem;
+  background: #222;
+  color: #fff;
+  text-align: center;
+  /* do NOT set display:flex here */
+}
+
+#results.active { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center; 
+}
+
+#results h2 { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  gap: .5rem; 
+}
+
+.result-item { 
+  margin: .5rem 0; 
+  font-size: 1.1rem; 
+}
+
+/* Make sure the Play Again (and other) buttons are always clickable */
+#results button,
+#results .play-button {
+  position: relative;
+  z-index: 1001;      /* above anything inside results */
+  pointer-events: auto;
+}
+
+/* Ad slot: keep it visually below and out of the click path */
+#adSlot { 
+  position: relative; 
+  z-index: 500;       /* lower than results/buttons */
+  margin-top: 1rem; 
+  text-align: center; 
+}
+.adsbygoogle { display: block; }  /* prevents odd inline overlap on responsive ads */
+
     .result-item { margin: .5rem 0; font-size: 1.1rem; }
 
 
@@ -1367,6 +1558,18 @@
       position: absolute; width: 10px; height: 10px;
       image-rendering: pixelated; z-index: 9999; background-size: cover;
     }
+
+
+
+/* ===== BLACK SCREEN FIX - ADD THESE RULES ===== */
+
+
+
+/* ===== END OF BLACK SCREEN FIX ===== */
+
+/* CRITICAL: Ensure lobby is always visible until game starts */
+
+/* ===== END CRITICAL FIXES ===== */
   </style>
 </head>
 <body>
@@ -1430,6 +1633,7 @@
 
 <audio id="bgMusic" src="music/chiptune_theme_catchy.wav" loop></audio>
 <button id="muteBtn" style="position:fixed;top:10px;right:10px;z-index:5000;">🔊</button>
+
 <script>
   const bgMusic = document.getElementById('bgMusic');
   const muteBtn = document.getElementById('muteBtn');
@@ -1483,53 +1687,7 @@
 
 <!-- Loading Screen (shows before lobby/game) -->
 
-    <!-- SCROLLABLE SCREEN AREA -->
- <div id="lobby" style="display:none;">
-        <div class="logo-container" style="margin-top:8px;">
-          <h1 class="main-logo">
-            <span class="logo-shadow">SUSHI<br>SPRINT</span>
-            <span class="logo-main">SUSHI<br>SPRINT</span>
-          </h1>
-          <div class="japanese-subtitle">
-            <h2>
-              <span class="japanese-shadow">寿司短距離走</span>
-              <span class="japanese-main">寿司短距離走</span>
-            </h2>
-          </div>
-        </div>
 
-        <div class="button-demo" style="
-  display: flex;
-  gap: 20px;
-  justify-content: center;
-  margin: 16px 0;
-">
-  <div class="demo-btn-wrapper">
-    <div class="demo-red-btn" style="
-      width: 60px;
-      height: 60px;
-      background: url('images/red_button_not_pressed.png') center/contain no-repeat;
-      animation: demoTapLeft 1.5s ease-in-out infinite;
-    "></div>
-    <div style="font-size: 0.7rem; margin-top: 4px;">LEFT</div>
-  </div>
-  <div class="demo-btn-wrapper">
-    <div class="demo-red-btn" style="
-      width: 60px;
-      height: 60px;
-      background: url('images/red_button_not_pressed.png') center/contain no-repeat;
-      animation: demoTapRight 1.5s ease-in-out infinite;
-    "></div>
-    <div style="font-size: 0.7rem; margin-top: 4px;">RIGHT</div>
-  </div>
-</div>
-
-<div style="font-size: 0.9rem; margin: 12px 0; color: #00FFFF; text-shadow: 2px 2px 0 #000;">
-  TAP LEFT & RIGHT TO SPRINT
-</div>
-<div style="font-size: 0.7rem; margin: 8px 0; color: #FFD700; text-shadow: 1px 1px 0 #000;">
-  TAP ABOVE/BELOW RUNNER TO CHANGE LANES
-</div>
 
 <style>
 @keyframes demoTapLeft {
@@ -1549,61 +1707,113 @@
 }
 </style>
 
-        <h2>JOIN THE RACE</h2>
-
-        <input id="roomId" type="hidden" value="">
-
-        <div id="lobbyStatus" style="margin-top:.5rem;">
-          <div id="playerCounter">Players joined: 0/4</div>
-          <div id="playerList" style="margin-top:.5rem;"></div>
-          <div id="joinContainer" style="margin-top:1rem;"></div>
-          <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
-        </div>
-
-        <!-- Country selector UI -->
-<!-- Clean flag selector -->
-<div style="display:flex; gap:8px; align-items:center; margin:6px 0; flex-wrap:wrap;">
-  <label for="countrySelect" style="color:#fff;font-size:.8rem;">Flag:</label>
-  <select id="countrySelect" style="flex:1; font-size:1rem; padding:8px; border:2px solid #222; border-radius:8px;">
-    <option value="">None / Neutral</option>
-  </select>
-  <span id="countryPreview" style="font-size:1.5rem; min-width:1.6rem; text-align:center;">🇺🇳</span>
-  <label style="color:#ccc;font-size:.85rem;display:flex;gap:6px;align-items:center;">
-    <input id="hideFlagsToggle" type="checkbox"> Hide flags
-  </label>
-</div>
 
 
+<!-- === LOBBY === -->
+<!-- === LOBBY === -->
+<!-- === LOBBY === -->
+<div id="lobby">
 
-        <!-- Bottom dock -->
-        <div id="lobbyDock">
-          <button id="joinRoomBtn" class="play-button">Join Game</button>
-          <button id="startBtn" class="play-button" style="display:none;">Start</button>
-        </div>
+  <!-- Logo & demo buttons (moved from hidden lobby) -->
+  <div class="logo-container" style="margin-top:8px;">
+    <h1 class="main-logo">
+      <span class="logo-shadow">SUSHI<br>SPRINT</span>
+      <span class="logo-main">SUSHI<br>SPRINT</span>
+    </h1>
+    <div class="japanese-subtitle">
+      <h2>
+        <span class="japanese-shadow">寿司短距離走</span>
+        <span class="japanese-main">寿司短距離走</span>
+      </h2>
+    </div>
+  </div>
+
+  <div class="button-demo" style="display:flex;gap:20px;justify-content:center;margin:16px 0;">
+    <div class="demo-btn-wrapper">
+      <div class="demo-red-btn" style="
+        width:60px;height:60px;
+        background:url('images/red_button_not_pressed.png') center/contain no-repeat;
+        animation:demoTapLeft 1.5s ease-in-out infinite;">
       </div>
+      <div style="font-size:0.7rem;margin-top:4px;">LEFT</div>
+    </div>
+    <div class="demo-btn-wrapper">
+      <div class="demo-red-btn" style="
+        width:60px;height:60px;
+        background:url('images/red_button_not_pressed.png') center/contain no-repeat;
+        animation:demoTapRight 1.5s ease-in-out infinite;">
+      </div>
+      <div style="font-size:0.7rem;margin-top:4px;">RIGHT</div>
+    </div>
+  </div>
 
-      <!-- COUNTDOWN -->
-      <div id="countdown"></div>
+  <div style="font-size:0.9rem;margin:12px 0;color:#00FFFF;text-shadow:2px 2px 0 #000;">
+    TAP LEFT & RIGHT TO SPRINT
+  </div>
+  <div style="font-size:0.7rem;margin:8px 0;color:#FFD700;text-shadow:1px 1px 0 #000;">
+    TAP ABOVE/BELOW RUNNER TO CHANGE LANES
+  </div>
 
-      <!-- GRANDSTAND -->
-      <div id="grandstand"></div>
+  <!-- Your existing lobby content -->
+  <h2>JOIN THE RACE</h2>
+  <input id="roomId" type="hidden" value="">
+  <div id="lobbyStatus" style="margin-top:.5rem;">
+    <div id="playerCounter">Players joined: 0/4</div>
+    <div id="lobbyCountdown">
+      <div class="countdown-text">Game starting in...</div>
+      <div class="countdown-timer" id="countdownTimer">8</div>
+    </div>
+    <div id="playerList" style="margin-top:.5rem;"></div>
+    <div id="joinContainer" style="margin-top:1rem;"></div>
+    <div id="waitingLabel" style="display:none;opacity:.85;margin-top:.5rem;">Waiting for host…</div>
+  </div>
 
-      <!-- TRACK -->
-<!-- TRACK -->
+  <!-- Country selector -->
+  <div style="display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap;">
+    <label for="countrySelect" style="color:#fff;font-size:.8rem;">Flag:</label>
+    <select id="countrySelect" style="flex:1;font-size:1rem;padding:8px;border:2px solid #222;border-radius:8px;">
+      <option value="">None / Neutral</option>
+    </select>
+    <span id="countryPreview" style="font-size:1.5rem;min-width:1.6rem;text-align:center;">🇺🇳</span>
+    <label style="color:#ccc;font-size:.85rem;display:flex;gap:6px;align-items:center;">
+      <input id="hideFlagsToggle" type="checkbox"> Hide flags
+    </label>
+  </div>
+
+  <!-- Bottom dock -->
+  <div id="lobbyDock">
+    <button id="joinRoomBtn" class="play-button">Join Game</button>
+    <button id="startBtn" class="play-button" style="display:none;">Start</button>
+    <a href="/leaderboard.html" class="play-button" style="text-decoration:none;">🏆 Leaderboard</a>
+  </div>
+
+</div>
+<!-- === END LOBBY === -->
+
+<!-- === END LOBBY === -->
+
+<!-- === END LOBBY === -->
+
+
+<!-- === GAME AREA (outside lobby) === -->
+<div id="countdown"></div>
+
+<div id="grandstand"></div>
+
 <div class="track-container">
   <div id="track">
-    <!-- Visual lane guides only -->
+    <!-- Visual lane guides -->
     <div id="lane1" class="lane"></div>
     <div id="lane2" class="lane"></div>
     <div id="lane3" class="lane"></div>
     <div id="lane4" class="lane"></div>
-    
-    <!-- All runners as direct children of track -->
+
+    <!-- Runners -->
     <div id="runner1" class="runner"></div>
     <div id="runner2" class="runner"></div>
     <div id="runner3" class="runner"></div>
     <div id="runner4" class="runner"></div>
-    
+
     <!-- Name labels -->
     <div id="name1" class="name-label"></div>
     <div id="name2" class="name-label"></div>
@@ -1612,7 +1822,6 @@
   </div>
 </div>
 
-      <!-- RESULTS -->
 <!-- RESULTS -->
 <div id="results" style="display:none;">
   <h2>
@@ -1624,6 +1833,8 @@
     <button class="play-button" onclick="resetGame()">Play Again</button>
   </div>
 </div>
+<!-- === END GAME AREA === -->
+
 
 <!-- MOBILE CONTROLS -->
 <div id="mobileControls" class="mobile-controls">
@@ -1655,6 +1866,46 @@
     <!-- SOCKET + GAME -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="game.js"></script>
+
+    <script>
+    // Debug finish line button
+    (function() {
+      const debugBtn = document.getElementById('debugFinish');
+      if (!debugBtn) return;
+
+      debugBtn.addEventListener('click', () => {
+        const fl = document.getElementById('finishLine');
+        const track = document.getElementById('track');
+        
+        console.log('=== FINISH LINE DEBUG ===');
+        console.log('Finish line element:', fl);
+        console.log('Finish line left:', fl?.style.left);
+        console.log('Track width:', gameState.trackWidth);
+        console.log('Track offsetWidth:', track?.offsetWidth);
+        console.log('My positions:', gameState.positions);
+        console.log('Camera offset:', cameraState.cameraOffset);
+        console.log('========================');
+        
+        // Make finish line very visible
+        if (fl) {
+          fl.style.border = '5px solid red';
+          fl.style.zIndex = '9999';
+          fl.style.background = 'repeating-linear-gradient(to bottom, red 0 12px, yellow 12px 24px)';
+        }
+      });
+
+      // Show button during race
+      if (typeof socket !== 'undefined') {
+        socket.on('gameStarted', () => {
+          debugBtn.style.display = 'block';
+        });
+        
+        socket.on('resetRoom', () => {
+          debugBtn.style.display = 'none';
+        });
+      }
+    })();
+    </script>
 
     <!-- Dock padding + keyboard helpers (kept) -->
     <script>

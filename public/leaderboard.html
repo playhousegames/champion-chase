@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Sushi Sprint - Country Leaderboard</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --hot-tuna-red: #FF3366;
+      --ocean-blue:   #0066FF;
+      --golden-tamago:#FFD700;
+      --electric-wasabi:#00FF88;
+      --pure-rice-white:#FFFFFF;
+      --bg: #000;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      font-family: 'Press Start 2P', monospace;
+      color: var(--pure-rice-white);
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    }
+
+    /* Logo Styles */
+    .logo-container {
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .main-logo {
+      position: relative;
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      line-height: 0.9;
+    }
+
+    .logo-shadow {
+      position: absolute;
+      inset: 0;
+      color: var(--ocean-blue);
+      text-shadow: 
+        4px 4px 0px currentColor,
+        -4px -4px 0px currentColor,
+        4px -4px 0px currentColor,
+        -4px 4px 0px currentColor;
+      -webkit-text-stroke: 4px currentColor;
+    }
+
+    .logo-main {
+      position: relative;
+      z-index: 10;
+      background: linear-gradient(45deg, var(--hot-tuna-red), var(--golden-tamago));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .japanese-subtitle {
+      text-align: center;
+      margin-top: 12px;
+    }
+
+    .japanese-subtitle h2 {
+      position: relative;
+      font-family: 'Noto Sans JP', serif;
+      font-size: clamp(1rem, 3vw, 1.5rem);
+      font-weight: bold;
+      margin: 0;
+    }
+
+    .japanese-shadow {
+      position: absolute;
+      color: var(--ocean-blue);
+      text-shadow: 
+        2px 2px 0px currentColor,
+        -2px -2px 0px currentColor;
+      transform: translateX(-50%);
+      left: 50%;
+    }
+
+    .japanese-main {
+      position: relative;
+      z-index: 10;
+      color: var(--pure-rice-white);
+    }
+
+    h1 {
+      text-align: center;
+      font-size: clamp(1.2rem, 4vw, 1.8rem);
+      color: var(--golden-tamago);
+      text-shadow: 3px 3px 0 #000;
+      margin: 20px 0;
+    }
+
+    .trophy-header {
+      text-align: center;
+      font-size: 3rem;
+      margin: 20px 0;
+      animation: trophyBounce 2s ease-in-out infinite;
+    }
+
+    @keyframes trophyBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .leaderboard-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 8px;
+      margin: 20px 0;
+    }
+
+    .leaderboard-table thead th {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--golden-tamago);
+      padding: 12px;
+      text-align: left;
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+      border-bottom: 3px solid var(--hot-tuna-red);
+    }
+
+    .leaderboard-table tbody tr {
+      background: rgba(255, 255, 255, 0.05);
+      transition: all 0.3s ease;
+    }
+
+    .leaderboard-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateX(5px);
+    }
+
+    .leaderboard-table tbody tr.top-3 {
+      background: rgba(255, 215, 0, 0.15);
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+    }
+
+    .leaderboard-table td {
+      padding: 12px;
+      font-size: 0.9rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .rank-cell {
+      width: 60px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .rank-1 { color: #FFD700; }
+    .rank-2 { color: #C0C0C0; }
+    .rank-3 { color: #CD7F32; }
+
+    .medal {
+      font-size: 1.5rem;
+      margin-right: 5px;
+    }
+
+    .flag-cell {
+      width: 60px;
+      text-align: center;
+      font-size: 1.8rem;
+    }
+
+    .country-cell {
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+
+    .wins-cell {
+      width: 100px;
+      text-align: right;
+      color: var(--electric-wasabi);
+      font-weight: bold;
+      font-size: 1rem;
+    }
+
+    .play-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      cursor: pointer;
+      min-width: 140px;
+      min-height: 48px;
+      background: var(--hot-tuna-red);
+      color: var(--pure-rice-white);
+      border: 4px solid var(--ocean-blue);
+      border-radius: 0;
+      box-shadow: 4px 4px 0 #000;
+      text-decoration: none;
+      text-shadow:
+        2px  2px 0 #000,
+       -2px  2px 0 #000,
+        2px -2px 0 #000,
+       -2px -2px 0 #000;
+      transition: all 0.2s ease;
+    }
+
+    .play-button:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0 #000;
+    }
+
+    .play-button:active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 #000;
+    }
+
+    .button-container {
+      text-align: center;
+      margin: 30px 0;
+      position: sticky;
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0.95) 100%);
+      padding: 20px 0;
+      z-index: 100;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      font-size: 1rem;
+      color: var(--electric-wasabi);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.9rem;
+    }
+
+    .empty-state-icon {
+      font-size: 4rem;
+      margin-bottom: 20px;
+      opacity: 0.3;
+    }
+
+    @media (max-width: 600px) {
+      .leaderboard-table {
+        font-size: 0.75rem;
+      }
+
+      .leaderboard-table td {
+        padding: 8px 6px;
+      }
+
+      .country-cell {
+        font-size: 0.75rem;
+      }
+
+      .flag-cell {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-container">
+      <h1 class="main-logo">
+        <span class="logo-shadow">SUSHI<br>SPRINT</span>
+        <span class="logo-main">SUSHI<br>SPRINT</span>
+      </h1>
+      <div class="japanese-subtitle">
+        <h2>
+          <span class="japanese-shadow">寿司短距離走</span>
+          <span class="japanese-main">寿司短距離走</span>
+        </h2>
+      </div>
+    </div>
+
+    <div class="trophy-header">🏆</div>
+    <h1>Country Leaderboard</h1>
+
+    <div id="loading" class="loading">Loading rankings...</div>
+    
+    <div id="emptyState" class="empty-state" style="display: none;">
+      <div class="empty-state-icon">🍣</div>
+      <p>No races completed yet!</p>
+      <p>Be the first to put your country on the board!</p>
+    </div>
+
+    <table id="leaderboardTable" class="leaderboard-table" style="display: none;">
+      <thead>
+        <tr>
+          <th class="rank-cell">Rank</th>
+          <th class="flag-cell">Flag</th>
+          <th class="country-cell">Country</th>
+          <th class="wins-cell">Wins</th>
+        </tr>
+      </thead>
+      <tbody id="leaderboardBody">
+        <!-- Populated by JavaScript -->
+      </tbody>
+    </table>
+
+    <div class="button-container">
+      <a href="/" class="play-button">← Back to Game</a>
+    </div>
+  </div>
+
+  <script>
+    // ISO country code to name mapping (expand as needed)
+    const COUNTRY_NAMES = {
+      "US": "United States",
+      "GB": "United Kingdom",
+      "JP": "Japan",
+      "FR": "France",
+      "DE": "Germany",
+      "SE": "Sweden",
+      "KR": "South Korea",
+      "CN": "China",
+      "IN": "India",
+      "BR": "Brazil",
+      "CA": "Canada",
+      "AU": "Australia",
+      "ES": "Spain",
+      "IT": "Italy",
+      "NL": "Netherlands",
+      "PL": "Poland",
+      "NO": "Norway",
+      "FI": "Finland",
+      "IE": "Ireland",
+      "PT": "Portugal",
+      "MX": "Mexico"
+    };
+
+    // Convert ISO country code to flag emoji
+    function isoToFlagEmoji(cc) {
+      if (!cc || typeof cc !== 'string') return '🏳️';
+      cc = cc.toUpperCase();
+      if (!/^[A-Z]{2}$/.test(cc)) return '🏳️';
+      const A = 0x1F1E6;
+      return String.fromCodePoint(
+        A + (cc.charCodeAt(0) - 65),
+        A + (cc.charCodeAt(1) - 65)
+      );
+    }
+
+    // Get country name or use code
+    function getCountryName(code) {
+      return COUNTRY_NAMES[code] || code;
+    }
+
+    // Get medal emoji for top 3
+    function getMedal(rank) {
+      if (rank === 1) return '🥇';
+      if (rank === 2) return '🥈';
+      if (rank === 3) return '🥉';
+      return '';
+    }
+
+    // Fetch and display leaderboard
+    async function loadLeaderboard() {
+      const loading = document.getElementById('loading');
+      const emptyState = document.getElementById('emptyState');
+      const table = document.getElementById('leaderboardTable');
+      const tbody = document.getElementById('leaderboardBody');
+
+      try {
+        const response = await fetch('/api/leaderboard');
+        const data = await response.json();
+
+        loading.style.display = 'none';
+
+        if (!data || data.length === 0) {
+          emptyState.style.display = 'block';
+          return;
+        }
+
+        table.style.display = 'table';
+        tbody.innerHTML = '';
+
+        data.forEach((entry, index) => {
+          const rank = index + 1;
+          const row = document.createElement('tr');
+          
+          if (rank <= 3) {
+            row.classList.add('top-3');
+          }
+
+          row.innerHTML = `
+            <td class="rank-cell rank-${rank}">
+              ${getMedal(rank)} ${rank}
+            </td>
+            <td class="flag-cell">${isoToFlagEmoji(entry.country)}</td>
+            <td class="country-cell">${getCountryName(entry.country)}</td>
+            <td class="wins-cell">${entry.wins}</td>
+          `;
+
+          tbody.appendChild(row);
+        });
+
+      } catch (error) {
+        console.error('Failed to load leaderboard:', error);
+        loading.textContent = 'Failed to load leaderboard. Please refresh.';
+      }
+    }
+
+    // Load on page load
+    loadLeaderboard();
+
+    // Refresh every 30 seconds
+    setInterval(loadLeaderboard, 30000);
+  </script>
+</body>
+</html>
