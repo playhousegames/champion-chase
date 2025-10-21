@@ -780,7 +780,7 @@ function setupKeyboardControls() {
   });
 }
 /* ------------------------------
-   POWER-UP SYSTEM
+   POWER-UP SYSTEM - FIXED FOR IMAGE GRAPHICS
 ------------------------------ */
 var powerUpSystem = {
   types: {
@@ -842,8 +842,10 @@ var powerUpSystem = {
     powerUp.style.left = x + 'px';
     powerUp.style.top = y + 'px';
  
+    // ✅ FIXED: Add both base class and specific type class
     const iconDiv = document.createElement('div');
     iconDiv.className = 'powerup-icon ' + type.iconClass;
+    // ✅ FIXED: Don't override display/size - let CSS handle it
     iconDiv.style.cssText = 'margin-bottom: 2px;';
  
     const label = document.createElement('div');
@@ -908,8 +910,9 @@ var powerUpSystem = {
  
     btn.innerHTML = '';
  
+    // ✅ FIXED: Add both base class and specific type class
     const iconDiv = document.createElement('div');
-    iconDiv.className = type.iconClass;
+    iconDiv.className = 'powerup-icon ' + type.iconClass;
     iconDiv.style.cssText = `
       width: 48px;
       height: 48px;
@@ -1053,35 +1056,94 @@ var powerUpSystem = {
              rect1.top > rect2.bottom);
   },
  
-  storePowerUp: function(playerId, type) {
-    const player = gameState.players[playerId];
-    if (!player) return;
-    this.playerStorage[playerId] = type;
-    const runner = document.getElementById('runner' + playerId);
-    if (runner) {
-      let icon = runner.querySelector('.stored-icon');
-      if (!icon) {
-        icon = document.createElement('div');
-        icon.className = 'stored-icon ' + type.iconClass;
-        icon.style.cssText = `
-          position: absolute;
-          top: -30px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 24px;
-          height: 24px;
-          z-index: 100;
-        `;
-        runner.appendChild(icon);
-      } else {
-        icon.className = 'stored-icon ' + type.iconClass;
+storePowerUp: function(playerId, type) {
+  const player = gameState.players[playerId];
+  if (!player) return;
+
+  this.playerStorage[playerId] = type;
+
+  const runner = document.getElementById('runner' + playerId);
+  if (!runner) return;
+
+  // Make runner a positioning context and allow out-of-bounds children
+  const cs = getComputedStyle(runner);
+  if (cs.position === 'static') runner.style.position = 'relative';
+  runner.style.overflow = 'visible';
+
+  let icon = runner.querySelector('.stored-icon');
+  if (!icon) {
+    icon = document.createElement('div');
+    icon.className = 'stored-icon';
+    runner.appendChild(icon);
+  }
+
+  // Base classes (animation class optional)
+  icon.className = 'powerup-icon stored-icon pop-in ' + (type.iconClass || '');
+
+  // Position/visuals
+  icon.style.cssText = `
+    position:absolute;
+    top:-35px;                /* raise above head */
+    left:50%;
+    transform:translateX(-50%);
+    width:32px;height:32px;
+    z-index:10000;
+    background-size:contain;background-repeat:no-repeat;background-position:center;
+    border:2px solid ${type.color};
+    border-radius:4px;
+    background-color:rgba(0,0,0,0.8);
+    box-shadow:0 0 10px ${type.color};
+    pointer-events:none;
+    animation:powerupPop 0.6s ease-out;
+  `;
+
+  /* 🧠 === HUD overlap protection === */
+  try {
+    const status = document.getElementById('statusBar');
+    const safeBottom = status ? status.getBoundingClientRect().bottom : 0; // HUD bottom in px
+    const r = runner.getBoundingClientRect();
+    let offset = -35; // default above head
+    const iconTopInViewport = r.top + offset;
+    const margin = 6;
+    if (iconTopInViewport < safeBottom + margin) {
+      const delta = (safeBottom + margin) - iconTopInViewport;
+      offset += delta; // push down just enough
+      icon.style.top = `${offset}px`;
+    }
+  } catch (e) {
+    console.warn('Power-up icon offset adjustment failed:', e);
+  }
+  /* 🧠 === End HUD protection === */
+
+  // ----- Sprite fallback for Safari / timing hiccups -----
+  if (type.iconUrl) {
+    icon.style.backgroundImage = `url("${type.iconUrl}")`;
+  } else {
+    const FRAME = {
+      'powerup-icon-dash'  : 'images/powerup_dash_1.png',
+      'powerup-icon-wasabi': 'images/powerup_wasabi_1.png',
+      'powerup-icon-mega'  : 'images/powerup_mega_1.png',
+      'powerup-icon-freeze': 'images/powerup_freeze_1.png',
+    };
+    requestAnimationFrame(() => {
+      const bg = getComputedStyle(icon).backgroundImage;
+      if (!bg || bg === 'none') {
+        const frame = FRAME[type.iconClass];
+        if (frame) icon.style.backgroundImage = `url("${frame}")`;
       }
-    }
-    if (!player.isBot && player.socketId === socket.id) {
-      this.showActivationButton(playerId, type);
-      this.showCollectionFeedback(type);
-    }
-  },
+    });
+  }
+
+  // UI for the local human
+  if (!player.isBot && player.socketId === socket.id) {
+    this.showActivationButton(playerId, type);
+    this.showCollectionFeedback(type);
+  }
+},
+
+
+
+
  
   activateStoredPowerUp: function(playerId) {
     console.log('🎮 ACTIVATE CALLED for player', playerId);
@@ -1113,7 +1175,12 @@ var powerUpSystem = {
   showCollectionFeedback: function(type) {
     const feedback = document.createElement('div');
     feedback.className = 'collection-feedback';
+    
+    // ✅ IMPROVED: Show animated icon in feedback
+    const iconHTML = `<div class="powerup-icon ${type.iconClass}" style="width:32px;height:32px;margin:0 auto 8px;"></div>`;
+    
     feedback.innerHTML = `
+      ${iconHTML}
       <div style="font-size: 0.9rem; color: ${type.color};">${type.name}</div>
       <div style="font-size: 0.7rem; color: #FFD700; margin-top: 4px;">COLLECTED!</div>
     `;
@@ -1140,8 +1207,9 @@ var powerUpSystem = {
   showActivationFeedback: function(text, color, type) {
     const feedback = document.createElement('div');
  
+    // ✅ IMPROVED: Use animated icon in activation feedback
     const iconHTML = type.iconClass
-      ? `<div class="${type.iconClass}" style="width:64px;height:64px;margin:0 auto 12px;transform:scale(1.8);"></div>`
+      ? `<div class="powerup-icon ${type.iconClass}" style="width:64px;height:64px;margin:0 auto 12px;transform:scale(1.8);"></div>`
       : '';
  
     const kanjiHTML = type.kanji
@@ -2232,7 +2300,29 @@ function lockScroll(shouldLock) {
 ------------------------------ */
 function resetAllUIElements() {
   console.log('[RESET] Resetting all UI elements...');
-  
+
+  // 🔧 Hard stop any active loops/intervals FIRST
+  gameState.isResetting = true; // ensure countdown loop exits
+  if (typeof gameLoopRunning !== 'undefined') gameLoopRunning = false;
+  if (typeof timerInterval !== 'undefined' && timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  // stop all runner sprite intervals
+  if (typeof playerStates === 'object' && playerStates) {
+    Object.keys(playerStates).forEach(pid => {
+      const ps = playerStates[pid];
+      if (ps && ps.animationInterval) {
+        clearInterval(ps.animationInterval);
+        ps.animationInterval = null;
+      }
+    });
+  }
+  // optional: quiet ambient/crowd
+  if (typeof crowdSystem !== 'undefined' && crowdSystem && typeof crowdSystem.reset === 'function') {
+    crowdSystem.reset();
+  }
+
   // ✅ Hide all game UI elements
   var elements = [
     { id: 'statusBar', action: el => { el.classList.remove('active'); el.style.display = 'none'; } },
@@ -2243,7 +2333,6 @@ function resetAllUIElements() {
     { id: 'timer', action: el => el.textContent = '00.000' },
     { id: 'staminaDisplay', action: el => el.style.display = 'none' }
   ];
-  
   elements.forEach(({ id, action }) => {
     var el = document.getElementById(id);
     if (el) action(el);
@@ -2259,8 +2348,9 @@ function resetAllUIElements() {
     track.querySelectorAll('.cherry-blossom, .position-announcement, .power-up-text, .kanji-effect, .track-obstacle, .speed-zone, .power-up, .confetti-tape').forEach(el => el.remove());
   }
 
-  if (typeof powerUpSystem !== 'undefined') {
-    powerUpSystem.reset();
+  if (typeof powerUpSystem !== 'undefined' && powerUpSystem) {
+    if (typeof powerUpSystem.reset === 'function') powerUpSystem.reset();
+    if (typeof powerUpSystem.hideActivationButton === 'function') powerUpSystem.hideActivationButton();
   }
 
   var container = document.querySelector('.track-container');
@@ -2280,12 +2370,12 @@ function resetAllUIElements() {
     var lane = document.getElementById('lane' + i);
     var runner = document.getElementById('runner' + i);
     var nameLabel = document.getElementById('name' + i);
-    
+
     if (lane) lane.style.display = 'none';
-    
+
     if (runner) {
       runner.style.left = '20px';
-      runner.classList.remove('running', 'active', 'winner', 'bot-runner', 'speed-boost', 'slowed', 'shielded');
+      runner.classList.remove('running', 'active', 'winner', 'bot-runner', 'speed-boost', 'slowed', 'shielded','frozen');
       runner.style.filter = '';
       runner.style.backgroundImage = '';
       runner.innerHTML = '';
@@ -2294,45 +2384,49 @@ function resetAllUIElements() {
       delete runner.dataset.currentFrame;
       runner._stopTimer = null;
     }
-    
+
     if (nameLabel) {
       nameLabel.textContent = '';
       nameLabel.style.opacity = '1';
     }
   }
 
-  // Force sprite reload
-  Object.keys(gameGraphics.characters).forEach(charId => {
-    if (gameGraphics.characters[charId]) {
-      gameGraphics.characters[charId].loaded = false;
-    }
-  });
+  // lobby countdown cleanup
+  var lc = document.getElementById('lobbyCountdown');
+  var ct = document.getElementById('countdownTimer');
+  if (lc) { lc.classList.remove('active','final3','go'); delete lc.dataset.lastTick; }
+  if (ct) ct.textContent = '';
 
-  // Reset game state
+  // Force sprite reload next time
+  if (window.gameGraphics && gameGraphics.characters) {
+    Object.keys(gameGraphics.characters).forEach(charId => {
+      if (gameGraphics.characters[charId]) gameGraphics.characters[charId].loaded = false;
+    });
+  }
+
+  // 🔧 Reset state last, then clear the resetting flag
   gameState.raceStarted = false;
   gameState.raceFinished = false;
   gameState.positions = {};
   gameState.speeds = {};
   gameState.finishTimes = {};
   gameState.countdownActive = false;
-  gameState.isResetting = false;
+  // (optional) gameState.roomId = null; // only if you truly want to leave the room here
   playerStates = {};
 
   lockScroll(true);
   ensureFinishLine();
   gameGraphics.loadAllSushiCharacters();
 
-  // ✅ SHOW LOBBY (make sure it's fully visible)
+  // Show lobby & restore join button
   var lobby = document.getElementById('lobby');
   if (lobby) {
     lobby.classList.add('active');
     lobby.style.display = 'block';
     lobby.style.visibility = 'visible';
     lobby.style.opacity = '1';
-    console.log('[RESET] Lobby shown');
   }
 
-  // ✅ Reset join button (make it clickable again)
   var joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn) {
     joinBtn.style.display = 'inline-block';
@@ -2340,7 +2434,6 @@ function resetAllUIElements() {
     joinBtn.textContent = 'Join Game';
     joinBtn.style.pointerEvents = 'auto';
     joinBtn.style.opacity = '1';
-    console.log('[RESET] Join button reset');
   }
 
   var startBtn = document.getElementById('startBtn');
@@ -2348,20 +2441,20 @@ function resetAllUIElements() {
 
   var playerList = document.getElementById('playerList');
   if (playerList) playerList.innerHTML = '';
-  
+
   var counterEl = document.getElementById('playerCounter');
   if (counterEl) counterEl.textContent = 'Players joined: 0/4';
 
-  // ✅ Restart lobby music
   var bgMusic = document.getElementById('bgMusic');
   if (bgMusic && bgMusic.paused) {
     bgMusic.currentTime = 0;
     bgMusic.play().catch(err => console.log('[RESET] Music play failed:', err));
-    console.log('[RESET] Lobby music restarted');
   }
 
+  gameState.isResetting = false; // finished
   console.log('[RESET] UI reset complete - ready for new players');
 }
+
 
 /* ------------------------------
    INITIALIZE - CLEAN VERSION
@@ -2397,7 +2490,7 @@ function initGame() {
 
     var container = document.querySelector('.track-container');
     if (container) {
-      container.style.overflow = 'hidden';
+      container.style.overflow = 'visible';
       container.style.position = 'relative';
       console.log('[INIT] Track container configured');
     } else {
@@ -2450,15 +2543,6 @@ function initGame() {
       setTimeout(bindJoinButton, 100);
     }
     
-    var startBtn = document.getElementById('startBtn');
-    if (startBtn && !startBtn._bound) {
-      startBtn.addEventListener('click', function () {
-        if (gameState.raceStarted || gameState.isResetting) return;
-        socket.emit('startGame', gameState.roomId);
-        console.log('[BTN] Start button clicked');
-      });
-      startBtn._bound = true;
-    }
     
     var loading = document.getElementById('loadingScreen');
     if (loading) {
@@ -2620,30 +2704,19 @@ socket.on('playerJoined', function (data) {
       if (botCount > 0) {
         counterEl.textContent = `Players: ${realCount} + ${botCount} bot${botCount > 1 ? 's' : ''} (${totalPlayers}/${max})`;
       } else {
-        counterEl.textContent = 'Players joined: ' + totalPlayers + '/' + max;
+        counterEl.textContent = `Players: ${totalPlayers}/${max} • Auto-starting...`;
       }
     }
   }
 
+ // Start button removed - game always auto-starts
+// Start button removed - game always auto-starts
   var startBtn = document.getElementById('startBtn');
-  var playerCount = Object.keys(gameState.players).length;
-  var isHost = (data && data.hostSocketId) ? (socket.id === data.hostSocketId) : false;
-
   if (startBtn) {
-    if (isHost && playerCount >= 2 && playerCount < 4) {
-      startBtn.style.display = 'block';
-      if (playerCount === 2) {
-        startBtn.textContent = "Start (2 Players)";
-      } else if (playerCount === 3) {
-        startBtn.textContent = "Start (3 Players)";
-      }
-    } else if (isHost && playerCount === 4) {
-      startBtn.style.display = 'none';
-    } else {
-      startBtn.style.display = 'none';
-    }
+    startBtn.style.display = 'none';
   }
-});
+}); // ← MISSING CLOSING BRACKET FOR playerJoined handler!
+
 
 socket.on('roomFull', function (payload) {
   var max = payload && payload.max ? payload.max : 4;
@@ -2837,15 +2910,18 @@ socket.on('lobbyCountdown', function (data = {}) {
   const el = document.getElementById('lobbyCountdown');
   const num = document.getElementById('countdownTimer');
   if (!el || !num) return;
-
   el.classList.remove('final3', 'go');
-
   const t = Number(data.timeLeft);
   if (!Number.isFinite(t)) return;
-
   if (t > 0) {
     el.classList.add('active');
-    num.textContent = String(t);
+    // ⬇️ ONLY THIS LINE CHANGES ⬇️
+num.innerHTML = `
+  <div style="font-size: 0.9rem; margin-bottom: 8px; color: #FFD700;">${t <= 3 ? 'GET READY!' : 'MATCHING PLAYERS FOR TOKYO SUSHI RACE...'}</div>
+  <div style="font-size: 3rem;">${t}</div>
+  <div style="font-size: 0.7rem; margin-top: 8px; color: #00FF88;">Filling empty slots with bots...</div>
+`;
+    // ⬆️ END OF CHANGE ⬆️
     if (t <= 3) {
       el.classList.add('final3');
       if (window.sounds && sounds.initialized) {
@@ -3307,51 +3383,72 @@ function gameLoop() {
 ------------------------------ */
 function updateGame() {
   if (gameState.isResetting) return;
-
+  
   var leadingPlayerPosition = 0;
   var leadingPlayerId = null;
-
-  // 1) Update runner positions & find leader (unchanged)
-  for (var playerId in gameState.players) {
-    var position = (typeof gameState.positions[playerId] === 'number') ? gameState.positions[playerId] : 20;
-    var runner = document.getElementById('runner' + playerId);
-    if (runner) {
-      runner.style.left = (position > 20 ? position : 20) + 'px';
-      if (!playerStates[playerId]) {
-        playerStates[playerId] = { speed:0, position:position, lastTap:0, isRunning:false, tapCount:0, animationInterval:null };
-      }
-      playerStates[playerId].position = position;
-
-      if ((playerStates[playerId].position || 0) > leadingPlayerPosition) {
-        leadingPlayerPosition = playerStates[playerId].position;
-        leadingPlayerId = playerId;
-      }
+  
+  // 1) Update runner positions & find leader with smooth interpolation
+// 1) Update runner positions & find leader with smooth interpolation
+for (var playerId in gameState.players) {
+  var targetPosition = (typeof gameState.positions[playerId] === 'number') ? gameState.positions[playerId] : 20;
+  var runner = document.getElementById('runner' + playerId);
+  
+  if (runner) {
+    if (!playerStates[playerId]) {
+      playerStates[playerId] = { 
+        speed: 0, 
+        position: targetPosition,  // Server position
+        visualPosition: targetPosition,  // Visual position
+        lastTap: 0, 
+        isRunning: false, 
+        tapCount: 0, 
+        animationInterval: null 
+      };
+    }
+    
+    // Keep server position accurate for powerup spawning
+    playerStates[playerId].position = targetPosition;
+    
+    // Smooth interpolation (lerp) for visual position only
+    var currentVisualPos = playerStates[playerId].visualPosition || 20;
+    var smoothPos = currentVisualPos + (targetPosition - currentVisualPos) * 0.3;
+    
+    runner.style.left = (smoothPos > 20 ? smoothPos : 20) + 'px';
+    playerStates[playerId].visualPosition = smoothPos;
+    
+    // Track leading player using actual server position
+    if (targetPosition > leadingPlayerPosition) {
+      leadingPlayerPosition = targetPosition;
+      leadingPlayerId = playerId;
     }
   }
-
+}
+  
   var track = document.getElementById('track');
   var container = document.querySelector('.track-container');
   var grandstand = document.getElementById('grandstand');
-  if (!track || !container) return;        // <-- removed leadingPlayerId check
-
-  // 2) Camera follow (cache-first, fallback to leader)
-  // ---- Camera follow (state-driven; no DOM dependency) ----
+  if (!track || !container) return;
+  
+  // 2) Camera follow (state-driven; no DOM dependency)
   var myPlayerId = gameState.myId;
   if (!myPlayerId) {
     for (var pid in gameState.players) {
-      if (gameState.players[pid] && gameState.players[pid].socketId === socket.id) { myPlayerId = pid; break; }
+      if (gameState.players[pid] && gameState.players[pid].socketId === socket.id) { 
+        myPlayerId = pid; 
+        break; 
+      }
     }
   }
-
+  
   // Prefer following you; fall back to leader if needed
   var followId = myPlayerId || leadingPlayerId;
-
+  
   if (followId) {
     // pull X from state first, then playerStates, then last-resort DOM
     var followPos =
       (typeof gameState.positions[followId] === 'number' ? gameState.positions[followId] : null) ??
       (playerStates[followId] && typeof playerStates[followId].position === 'number' ? playerStates[followId].position : null);
-
+    
     if (followPos === null) {
       var fr = document.getElementById('runner' + followId);
       if (fr) {
@@ -3362,27 +3459,25 @@ function updateGame() {
         followPos = 0;
       }
     }
-
+    
     var screenOffset = container.offsetWidth * 0.2;
     var maxCam = Math.max(0, (gameState.trackWidth || 0) - container.offsetWidth);
     var target = Math.min(Math.max(0, followPos - screenOffset), maxCam);
-
-    // easing helps survive transient blips
-    var k = 0.25;
+    
+    // Smoother camera easing
+    var k = 0.15;
     cameraState.cameraOffset += (target - cameraState.cameraOffset) * k;
   }
-
   
-
   // 3) Apply transform
   track.style.transform = 'translateX(-' + cameraState.cameraOffset + 'px)';
-
+  
   // 4) Parallax grandstand
   if (grandstand) {
     var parallaxOffset = cameraState.cameraOffset * 0.5;
     grandstand.style.backgroundPositionX = '-' + parallaxOffset + 'px';
   }
-
+  
   // 5) Collisions (guarded)
   Object.keys(gameState.players).forEach(function(pid) {
     if (typeof powerUpSystem !== 'undefined' && powerUpSystem && typeof powerUpSystem.checkCollisions === 'function') {
@@ -3393,7 +3488,6 @@ function updateGame() {
     }
   });
 }
-
 
 
 /* ------------------------------
@@ -3407,64 +3501,82 @@ function checkFinish(playerId) {
     return;
   }
 
-  var isMobile = window.innerWidth <= 480;
-  var finishLineOffset = isMobile ? 150 : 200;
-  var startPadding = 20;
-  var finishLinePosition = gameState.trackWidth - finishLineOffset - startPadding;
+  const isMobile = window.innerWidth <= 480;
+  const finishLineOffset = isMobile ? 150 : 200;
+  const startPadding = 20;
+  const finishLinePosition = gameState.trackWidth - finishLineOffset - startPadding;
 
-  var currentPosition = (typeof gameState.positions[playerId] === 'number') 
-    ? gameState.positions[playerId] 
-    : (playerStates[playerId] && typeof playerStates[playerId].position === 'number')
-      ? playerStates[playerId].position
-      : 20;
-  
-  console.log(`[FINISH] Player ${playerId} at ${currentPosition} vs finish ${finishLinePosition}`);
-  
-  if (currentPosition >= finishLinePosition) {
-    console.log(`[FINISH] ✅ Player ${playerId} CROSSED THE FINISH LINE!`);
-    
-    var finishTime = (Date.now() - gameState.startTime) / 1000;
+  // ✅ Use the same coordinate the sprite uses on screen
+  const runner = document.getElementById('runner' + playerId);
+  const visualPos =
+    (playerStates[playerId] && typeof playerStates[playerId].visualPosition === 'number')
+      ? playerStates[playerId].visualPosition
+      : (runner && runner.style && runner.style.left)
+        ? parseFloat(runner.style.left) || 20
+        : 20;
+
+  // Optional tiny buffer so the front of the sprite fully clears the line
+  const spriteWidth = 32; // matches your runner width
+  const nosePos = visualPos + (spriteWidth * 0.5); // center/right-ish of sprite
+
+  console.log(`[FINISH] Player ${playerId} at visual ${visualPos.toFixed(1)} (nose ${nosePos.toFixed(1)}) vs finish ${finishLinePosition}`);
+
+  if (nosePos >= finishLinePosition) {
+    console.log(`[FINISH] ✅ Player ${playerId} CROSSED THE FINISH LINE (visual)!`);
+
+    const finishTime = (Date.now() - gameState.startTime) / 1000;
     gameState.finishTimes[playerId] = finishTime;
 
     if (typeof crowdSystem !== 'undefined') {
-      const finishedCount = Object.keys(gameState.finishTimes).length;
-      const timeDiff = finishTime - (Object.values(gameState.finishTimes)[0] || finishTime);
-      crowdSystem.onPlayerFinish(playerId, finishedCount, timeDiff);
+      const finishedCountNow = Object.keys(gameState.finishTimes).length;
+      const firstTime = Object.values(gameState.finishTimes)[0] || finishTime;
+      const timeDiff = finishTime - firstTime;
+      crowdSystem.onPlayerFinish(playerId, finishedCountNow, timeDiff);
     }
 
     if (sounds.initialized) sounds.playFinish();
 
     // Notify server
-    socket.emit('checkFinish', { 
-      roomId: gameState.roomId, 
-      playerId: playerId, 
-      finishTime: finishTime 
+    socket.emit('checkFinish', {
+      roomId: gameState.roomId,
+      playerId,
+      finishTime
     });
 
-    var runner = document.getElementById('runner' + playerId);
     if (runner) stopRunnerAnimation(playerId);
 
-    // ✅ Check if this is the FIRST player to finish
-    var finishedCount = Object.keys(gameState.finishTimes).length;
-    
+    // How many have finished so far?
+    let finishedCount = Object.keys(gameState.finishTimes).length;
+
+    // First finisher -> grace window to avoid instant DNFs
     if (finishedCount === 1) {
-      // First player finished - end the race!
-      console.log('[FINISH] 🏆 FIRST PLAYER FINISHED - ENDING RACE NOW!');
-      
-      // Give other players DNF times
-      for (var pid in gameState.players) {
-        if (!gameState.finishTimes[pid]) {
-          gameState.finishTimes[pid] = 999.999; // DNF time
+      console.log('[FINISH] 🏁 First finisher — starting grace window...');
+      const GRACE_MS = 3000;
+
+      socket.emit('finishWindowStarted', { roomId: gameState.roomId, windowMs: GRACE_MS });
+
+      setTimeout(function () {
+        for (const pid in gameState.players) {
+          if (!gameState.finishTimes[pid]) {
+            gameState.finishTimes[pid] = 999.999; // DNF
+          }
         }
-      }
-      
-      // End race immediately
-      setTimeout(function(){ 
-        socket.emit('endRace', gameState.roomId); 
+        socket.emit('endRace', gameState.roomId);
+      }, GRACE_MS);
+    }
+
+    // If everyone finished, end promptly
+    const totalRacers = Object.keys(gameState.players).length;
+    finishedCount = Object.keys(gameState.finishTimes).length;
+    if (finishedCount === totalRacers) {
+      setTimeout(function () {
+        socket.emit('endRace', gameState.roomId);
       }, 300);
     }
   }
 }
+
+
 
 function showResults() {
   if (gameState.isResetting) return;

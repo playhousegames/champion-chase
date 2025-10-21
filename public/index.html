@@ -140,6 +140,30 @@
   100% { transform: scale(1);   }
 }
 
+/* Smooth pop/fade animation */
+@keyframes powerupPop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.2) translateY(-10px);
+    filter: brightness(2);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.2) translateY(-35px);
+    filter: brightness(1.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1) translateY(0);
+    filter: brightness(1);
+  }
+}
+
+.powerup-icon.pop-in {
+  animation: powerupPop 0.6s ease-out forwards;
+}
+
+
 /* Nice-to-have: respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   #lobbyCountdown.active { animation: none; }
@@ -227,61 +251,58 @@
    PIXEL GRAPHICS CSS - Add to your <style> section
    ===================================================== */
 
-/* Pixel Power-up Icons */
-.powerup-icon-wasabi {
+/* Base power-up icon styling */
+.powerup-icon {
   width: 32px;
   height: 32px;
   display: inline-block;
-  background:
-    linear-gradient(90deg, transparent 10px, #FF6600 10px, #FF6600 14px, transparent 14px, transparent 18px, #FF6600 18px, #FF6600 22px, transparent 22px) 0 4px,
-    linear-gradient(90deg, transparent 8px, #FFD700 8px, #FFD700 12px, transparent 12px, transparent 14px, #FF6600 14px, #FF6600 18px, transparent 18px, transparent 20px, #FFD700 20px, #FFD700 24px, transparent 24px) 0 8px,
-    linear-gradient(90deg, transparent 6px, #FF6600 6px, #FF6600 26px, transparent 26px) 0 12px,
-    linear-gradient(90deg, transparent 4px, #FFD700 4px, #FFD700 28px, transparent 28px) 0 16px,
-    linear-gradient(90deg, transparent 8px, #00FF88 8px, #00FF88 24px, transparent 24px) 0 20px,
-    linear-gradient(90deg, transparent 6px, #00FF88 6px, #00FF88 26px, transparent 26px) 0 24px,
-    linear-gradient(90deg, transparent 8px, #00FF88 8px, #00FF88 24px, transparent 24px) 0 28px;
-  background-size: 32px 4px;
+  background-size: contain;
   background-repeat: no-repeat;
+  background-position: center;
   filter: drop-shadow(1px 1px 0 #000);
   image-rendering: pixelated;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
 
-.powerup-icon-freeze {
-  width: 32px;
-  height: 32px;
-  display: inline-block;
-  background:
-    linear-gradient(90deg, transparent 14px, #00FFFF 14px, #00FFFF 18px, transparent 18px) 0 0,
-    linear-gradient(90deg, transparent 10px, #00FFFF 10px, #00FFFF 22px, transparent 22px) 0 4px,
-    linear-gradient(90deg, transparent 6px, #00FFFF 6px, #00FFFF 26px, transparent 26px) 0 8px,
-    linear-gradient(90deg, transparent 4px, #00FFFF 4px, #00FFFF 28px, transparent 28px) 0 12px,
-    linear-gradient(90deg, #00FFFF 0 100%) 0 16px,
-    linear-gradient(90deg, transparent 4px, #00FFFF 4px, #00FFFF 28px, transparent 28px) 0 20px,
-    linear-gradient(90deg, transparent 6px, #00FFFF 6px, #00FFFF 26px, transparent 26px) 0 24px,
-    linear-gradient(90deg, transparent 10px, #00FFFF 10px, #00FFFF 22px, transparent 22px) 0 28px;
-  background-size: 32px 4px;
-  background-repeat: no-repeat;
-  filter: drop-shadow(1px 1px 0 #000);
-  image-rendering: pixelated;
-}
-
+/* DASH Power-up (Purple/Pink with arrow) */
 .powerup-icon-dash {
-  width: 32px;
-  height: 32px;
-  display: inline-block;
-  background:
-    linear-gradient(90deg, transparent 12px, #FF00FF 12px, #FF00FF 20px, transparent 20px) 0 0,
-    linear-gradient(90deg, transparent 10px, #FF00FF 10px, #FF00FF 22px, transparent 22px) 0 4px,
-    linear-gradient(90deg, transparent 8px, #FF00FF 8px, #FF00FF 20px, transparent 20px) 0 8px,
-    linear-gradient(90deg, transparent 6px, #FF00FF 6px, #FF00FF 18px, transparent 18px) 0 12px,
-    linear-gradient(90deg, #FF00FF 0 100%) 0 16px,
-    linear-gradient(90deg, transparent 14px, #FF00FF 14px, #FF00FF 26px, transparent 26px) 0 20px,
-    linear-gradient(90deg, transparent 16px, #FF00FF 16px, #FF00FF 28px, transparent 28px) 0 24px,
-    linear-gradient(90deg, transparent 18px, #FF00FF 18px, #FF00FF 26px, transparent 26px) 0 28px;
-  background-size: 32px 4px;
-  background-repeat: no-repeat;
-  filter: drop-shadow(1px 1px 0 #000);
-  image-rendering: pixelated;
+  animation: dashAnimate 0.4s steps(2) infinite;
+}
+
+@keyframes dashAnimate {
+  0% { background-image: url('images/powerup_dash_1.png'); }
+  50% { background-image: url('images/powerup_dash_2.png'); }
+}
+
+/* WASABI/SPEED Power-up (Blue with lightning) */
+.powerup-icon-wasabi {
+  animation: wasabiAnimate 0.3s steps(2) infinite;
+}
+
+@keyframes wasabiAnimate {
+  0% { background-image: url('images/powerup_wasabi_1.png'); }
+  50% { background-image: url('images/powerup_wasabi_2.png'); }
+}
+
+/* MEGA Power-up (Yellow/Orange with star) */
+.powerup-icon-mega {
+  animation: megaAnimate 0.35s steps(2) infinite;
+}
+
+@keyframes megaAnimate {
+  0% { background-image: url('images/powerup_mega_1.png'); }
+  50% { background-image: url('images/powerup_mega_2.png'); }
+}
+
+/* FREEZE Power-up (Green with concentric circles) */
+.powerup-icon-freeze {
+  animation: freezeAnimate 0.5s steps(2) infinite;
+}
+
+@keyframes freezeAnimate {
+  0% { background-image: url('images/powerup_freeze_1.png'); }
+  50% { background-image: url('images/powerup_freeze_2.png'); }
 }
 
 @keyframes powerupSlideIn {
@@ -306,24 +327,7 @@
   }
 }
 
-.powerup-icon-mega {
-  width: 32px;
-  height: 32px;
-  display: inline-block;
-  background:
-    linear-gradient(90deg, transparent 14px, #FFD700 14px, #FFD700 18px, transparent 18px) 0 0,
-    linear-gradient(90deg, transparent 12px, #FFD700 12px, #FFD700 20px, transparent 20px) 0 4px,
-    linear-gradient(90deg, transparent 8px, #FFD700 8px, #FFD700 24px, transparent 24px) 0 8px,
-    linear-gradient(90deg, #FFD700 0 100%) 0 12px,
-    linear-gradient(90deg, #FFD700 0 100%) 0 16px,
-    linear-gradient(90deg, transparent 4px, #FFD700 4px, #FFD700 14px, transparent 14px, transparent 18px, #FFD700 18px, #FFD700 28px, transparent 28px) 0 20px,
-    linear-gradient(90deg, transparent 8px, #FFD700 8px, #FFD700 12px, transparent 12px, transparent 20px, #FFD700 20px, #FFD700 24px, transparent 24px) 0 24px,
-    linear-gradient(90deg, transparent 10px, #FFD700 10px, #FFD700 12px, transparent 12px, transparent 20px, #FFD700 20px, #FFD700 22px, transparent 22px) 0 28px;
-  background-size: 32px 4px;
-  background-repeat: no-repeat;
-  filter: drop-shadow(1px 1px 0 #000);
-  image-rendering: pixelated;
-}
+
 
 /* Larger Pixel Arrows for Lane Changes */
 .pixel-arrow-up {
@@ -1336,16 +1340,19 @@
       width: 100%; height: 120px;
       background: url('images/grandstand.png') repeat-x bottom;
       background-size: auto 120px;
+      position: relative;        /* make its z-index actually apply */
+      z-index: 1000;   /* below the track */
       display: none;
     }
     #grandstand.active { display: block; }
 
     /* ---- Track ---- */
-    .track-container { 
+  .track-container { 
   position: relative; 
   width: 100%; 
   height: 320px; 
-  overflow: hidden; 
+  z-index: 2000;   /* above grandstand */
+  overflow: visible; 
   background: #b7410e; 
   display: none; 
 }
@@ -1360,6 +1367,7 @@
   position: relative; 
   height: 100%;
   width: 12000px; /* Fallback only */
+  overflow: visible; 
   background-image: repeating-linear-gradient(
     to right,
     rgba(255,255,255,.18) 0px,
@@ -1369,6 +1377,15 @@
   );
   display: block; /* ✅ force visible instead of none */
 }
+
+/* Ensure power-ups render above lanes/runners and aren’t clipped by their own box */
+.power-up {
+  position: absolute;        /* critical */
+  z-index: 2500;             /* above lanes/runners and grandstand */
+  pointer-events: none;      /* same behavior as before */
+  overflow: visible;         /* belt-and-braces */
+}
+
 
 
  .lane { 
@@ -1391,6 +1408,7 @@
   transition: left .08s linear, transform .3s ease-out; /* Use transform instead of top */
   backface-visibility: hidden; 
   transform: translateZ(0); 
+  transition: left 0.1s linear;
   will-change: transform, left;
   -webkit-transform: translateZ(0);
   -webkit-backface-visibility: hidden;
@@ -1760,7 +1778,6 @@
   <div id="lobbyStatus" style="margin-top:.5rem;">
     <div id="playerCounter">Players joined: 0/4</div>
     <div id="lobbyCountdown">
-      <div class="countdown-text">Game starting in...</div>
       <div class="countdown-timer" id="countdownTimer">8</div>
     </div>
     <div id="playerList" style="margin-top:.5rem;"></div>
@@ -1964,13 +1981,39 @@ function isoToFlagEmoji(cc) {
 }
 
 // --- Country list (trimmed ISO-3166 sample; add more as needed) ---
+// --- Country list (globally representative, organized by region) ---
 const ISO_COUNTRIES = [
-  ["UN","United Nations"],["US","United States"],["GB","United Kingdom"],
-  ["JP","Japan"],["FR","France"],["DE","Germany"],["SE","Sweden"],
-  ["KR","South Korea"],["CN","China"],["IN","India"],["BR","Brazil"],
-  ["CA","Canada"],["AU","Australia"],["ES","Spain"],["IT","Italy"],
-  ["NL","Netherlands"],["PL","Poland"],["NO","Norway"],["FI","Finland"],
-  ["IE","Ireland"],["PT","Portugal"],["MX","Mexico"]
+  ["UN","United Nations"],
+  
+  // Europe
+  ["ENG","England"],["SCO","Scotland"],["WAL","Wales"],
+  ["IE","Ireland"],["NIR","Northern Ireland"],["JE","Jersey"],["GG","Guernsey"],
+  ["FR","France"],["DE","Germany"],["ES","Spain"],["IT","Italy"],
+  ["NL","Netherlands"],["SE","Sweden"],["NO","Norway"],["FI","Finland"],
+  ["PL","Poland"],["PT","Portugal"],["GR","Greece"],["CH","Switzerland"],
+  
+  // Americas
+  ["US","United States"],["CA","Canada"],["BR","Brazil"],["MX","Mexico"],
+  ["AR","Argentina"],["CL","Chile"],["CO","Colombia"],["PE","Peru"],
+  ["JM","Jamaica"],["TT","Trinidad and Tobago"],
+  
+  // Africa
+  ["ZA","South Africa"],["NG","Nigeria"],["EG","Egypt"],["KE","Kenya"],
+  ["GH","Ghana"],["ET","Ethiopia"],["MA","Morocco"],["TZ","Tanzania"],
+  ["UG","Uganda"],["SN","Senegal"],["CI","Côte d'Ivoire"],["CM","Cameroon"],
+  ["RW","Rwanda"],["ZW","Zimbabwe"],
+  
+  // Asia
+  ["JP","Japan"],["CN","China"],["IN","India"],["KR","South Korea"],
+  ["PH","Philippines"],["TH","Thailand"],["VN","Vietnam"],["ID","Indonesia"],
+  ["MY","Malaysia"],["SG","Singapore"],["PK","Pakistan"],["BD","Bangladesh"],
+  
+  // Oceania
+  ["AU","Australia"],["NZ","New Zealand"],["FJ","Fiji"],["PG","Papua New Guinea"],
+  
+  // Middle East
+  ["AE","United Arab Emirates"],["SA","Saudi Arabia"],["IL","Israel"],
+  ["TR","Turkey"],["JO","Jordan"],["LB","Lebanon"]
 ];
 
 // --- Setup dropdown ---
