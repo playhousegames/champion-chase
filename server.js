@@ -4,6 +4,7 @@ const http     = require('http');
 const socketIo = require('socket.io');
 const path     = require('path');
 const os       = require('os');
+const fs       = require('fs');
 
 const app    = express();
 const server = http.createServer(app);
@@ -14,8 +15,35 @@ const SPEED_MULTIPLIER = 3;
 const MAX_PLAYERS  = 4;
 const MIN_TO_START = 2;
 
-// ---- Leaderboard Storage (in-memory, persists during server runtime) ----
-const countryLeaderboard = {}; // { "US": 5, "JP": 3, "GB": 8, ... }
+// ---- Leaderboard Storage (persistent on disk) ----
+const DATA_DIR = path.join(__dirname, 'data');
+const LB_FILE  = path.join(DATA_DIR, 'leaderboard.json');
+let countryLeaderboard = {};
+try {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
+ if (fs.existsSync(LB_FILE)) {
+    countryLeaderboard = JSON.parse(fs.readFileSync(LB_FILE, 'utf8')) || {};
+ } else {
+    countryLeaderboard = {};
+  }
+} catch (e) {
+  console.warn('Failed to load leaderboard, starting fresh:', e);
+  countryLeaderboard = {};
+}
+
+// Debounced saver
+let _saveTimer = null;
+function saveLeaderboard() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    try {
+      fs.writeFileSync(LB_FILE, JSON.stringify(countryLeaderboard, null, 2));
+      console.log('💾 Leaderboard saved');
+    } catch (e) {
+      console.warn('Failed to save leaderboard:', e);
+    }
+  }, 500);
+}
 
 // ---- Static ----
 app.use(express.static(path.join(__dirname, 'public')));
@@ -201,13 +229,15 @@ function stopBotAI(roomId) {
 
 // Record winner's country to leaderboard
 function recordWin(countryCode) {
-  if (!countryCode || countryCode === 'UN') return; // Don't count neutral/unselected
-  
+  if (!countryCode) return;
+  const ALLOWED3 = new Set(['ENG','SCO','WAL','NIR','JE','GG','UN']);
   const cc = countryCode.toUpperCase();
-  if (!/^[A-Z]{2}$/.test(cc)) return;
-  
+  // Allow 2-letter ISO or our 3-letter/territory codes; do not count UN
+  const valid = ((/^[A-Z]{2}$/.test(cc) || ALLOWED3.has(cc)) && cc !== 'UN');
+  if (!valid) return;
   countryLeaderboard[cc] = (countryLeaderboard[cc] || 0) + 1;
   console.log(`📊 Leaderboard updated: ${cc} now has ${countryLeaderboard[cc]} wins`);
+  saveLeaderboard();
 }
 
 // Automatically reset a room a few seconds after race ends
@@ -363,10 +393,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const cc =
-      typeof countryCode === 'string' && /^[A-Z]{2}$/.test(countryCode.toUpperCase())
-        ? countryCode.toUpperCase()
-        : 'UN';
+    const ALLOWED3 = new Set(['ENG','SCO','WAL','NIR','JE','GG','UN']);
+   const raw = (countryCode || '').toString().toUpperCase();
+    const cc = (/^[A-Z]{2}$/.test(raw) || ALLOWED3.has(raw)) ? raw : 'UN';
 
     const safeName = generatePlayerName(playerNum);
     room.players[playerNum] = { name: safeName, id: playerNum, socketId: socket.id, country: cc };
@@ -428,11 +457,28 @@ io.on('connection', (socket) => {
     }, 300);
   });
 
-  socket.on('checkFinish', ({ roomId: rid, playerId, finishTime }) => {
-    const room = rooms[rid];
-    if (!room) return;
+socket.on('checkFinish', ({ roomId: rid, playerId, finishTime }) => {
+  const room = rooms[rid];
+  if (!room || room.isResetting) return;
 
-    room.finishTimes[playerId] = finishTime;
+  room.finishTimes[playerId] = finishTime;
+
+  const total = Object.keys(room.players).length;
+  const done  = Object.keys(room.finishTimes).length;
+
+  if (done >= total && !room.winnerRecorded) {
+    const finishArray = Object.entries(room.finishTimes)
+      .map(([pid, time]) => ({ playerId: pid, time }))
+      .sort((a, b) => a.time - b.time);
+
+    if (finishArray.length) {
+      const winnerId = finishArray[0].playerId;
+      const winner   = room.players[winnerId];
+      if (winner && winner.country) {
+        recordWin(winner.country);
+        room.winnerRecorded = true; // prevent double count anywhere else
+      }
+    }
 
     io.to(rid).emit('endRace', {
       players: room.players,
@@ -440,7 +486,9 @@ io.on('connection', (socket) => {
       speeds: room.speeds,
       finishTimes: room.finishTimes
     });
-  });
+  }
+});
+
 
   socket.on('endRace', (rid) => {
     const room = rooms[rid];

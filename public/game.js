@@ -3992,8 +3992,11 @@ function joinRoom() {
   console.log('[JOIN] Found available slot:', slot);
 
   // Get country code
+
+  // Accept 2-letter ISO codes OR our custom subdivision codes
   var cc = (localStorage.getItem('sushiCountry') || '').toUpperCase();
-  if (cc && !/^[A-Z]{2}$/.test(cc)) cc = '';
+  const ALLOWED3 = new Set(['ENG','SCO','WAL','NIR','JE','GG','UN']);
+  if (!/^[A-Z]{2}$/.test(cc) && !ALLOWED3.has(cc)) cc = 'UN';
 
   var payload = {
     roomId: gameState.roomId,
