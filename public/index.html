@@ -9,6 +9,8 @@
 <meta name="keywords" content="multiplayer game, mobile game, tap game, racing game, sushi game, online multiplayer, free browser game, party game">
 <meta name="author" content="Sushi Sprint">
 <link rel="canonical" href="https://play.sushisprint.io/">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6069110732719713"
+     crossorigin="anonymous"></script>
 
 <!-- Open Graph (Facebook, Discord) -->
 <meta property="og:title" content="Sushi Sprint - Multiplayer Tap Racing Game">
@@ -1970,14 +1972,38 @@
 
 <script>
 // --- Helper to turn ISO code -> flag emoji ---
+// --- Custom flag emojis for subdivisions ---
+// --- Custom flag emojis for subdivisions ---
+const CUSTOM_FLAGS = {
+  "ENG": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}", // England
+  "SCO": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}", // Scotland
+  "WAL": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}", // Wales
+  "NIR": "\u{1F1EC}\u{1F1E7}", // Northern Ireland (UK flag)
+  "UN": "\u{1F1FA}\u{1F1F3}"   // United Nations
+};
+
+// --- Helper to turn ISO code -> flag emoji ---
 function isoToFlagEmoji(cc) {
   try {
     if (!cc || typeof cc !== 'string') return '🇺🇳';
     cc = cc.toUpperCase();
-    if (!/^[A-Z]{2}$/.test(cc)) return '🇺🇳';
-    const A = 0x1F1E6;
-    return String.fromCodePoint(A + (cc.charCodeAt(0) - 65), A + (cc.charCodeAt(1) - 65));
-  } catch { return '🇺🇳'; }
+    
+    // Check for custom flags first
+    if (CUSTOM_FLAGS[cc]) {
+      return CUSTOM_FLAGS[cc];
+    }
+    
+    // Standard 2-letter ISO codes
+    if (/^[A-Z]{2}$/.test(cc)) {
+      const A = 0x1F1E6;
+      return String.fromCodePoint(A + (cc.charCodeAt(0) - 65), A + (cc.charCodeAt(1) - 65));
+    }
+    
+    // Fallback for other codes
+    return '🏳️';
+  } catch { 
+    return '🇺🇳'; 
+  }
 }
 
 // --- Country list (trimmed ISO-3166 sample; add more as needed) ---
@@ -2121,9 +2147,6 @@ const ISO_COUNTRIES = [
 
 
     <!-- Google Adsense -->
-
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6069110732719713"
-     crossorigin="anonymous"></script>
 
 
     <div id="cookieBanner" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#fff;padding:10px;text-align:center;z-index:6000;">
