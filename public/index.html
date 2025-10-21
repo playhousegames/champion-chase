@@ -9,8 +9,8 @@
 <meta name="keywords" content="multiplayer game, mobile game, tap game, racing game, sushi game, online multiplayer, free browser game, party game">
 <meta name="author" content="Sushi Sprint">
 <link rel="canonical" href="https://play.sushisprint.io/">
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6069110732719713"
-     crossorigin="anonymous"></script>
+<!--<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6069110732719713"
+     crossorigin="anonymous"></script>-->
 
 <!-- Open Graph (Facebook, Discord) -->
 <meta property="og:title" content="Sushi Sprint - Multiplayer Tap Racing Game">
@@ -2153,24 +2153,43 @@ const ISO_COUNTRIES = [
     <!-- Google Adsense -->
 
 
-    <div id="cookieBanner" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#fff;padding:10px;text-align:center;z-index:6000;">
-      This site uses cookies for analytics and ads.
-      <button id="acceptCookies">Accept</button>
-    </div>
-    <script>
-      document.getElementById('acceptCookies').onclick = function() {
-        document.getElementById('cookieBanner').style.display = 'none';
-        updateCookiePadding();
-      };
-      function updateCookiePadding() {
-        const banner = document.getElementById('cookieBanner');
-        const visible = banner && banner.style.display !== 'none';
-        const h = visible ? (banner.offsetHeight || 0) : 0;
-        document.documentElement.style.setProperty('--cookieH', h + 'px');
-      }
-      window.addEventListener('load', updateCookiePadding);
-      window.addEventListener('resize', updateCookiePadding);
-    </script>
+<div id="cookieBanner" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#fff;padding:10px;text-align:center;z-index:6000;display:none;">
+  This site uses cookies for analytics only. No ads.
+  <button id="acceptCookies" style="margin-left:8px;padding:4px 10px;border:none;background:#444;color:#fff;border-radius:4px;cursor:pointer;">
+    OK
+  </button>
+</div>
+
+<script>
+  (function(){
+    const banner = document.getElementById('cookieBanner');
+    const accepted = localStorage.getItem('cookiesAccepted');
+
+    // Show banner only if not accepted yet
+    if (!accepted) {
+      banner.style.display = 'block';
+    }
+
+    // Handle click
+    document.getElementById('acceptCookies').onclick = function() {
+      localStorage.setItem('cookiesAccepted', 'true');
+      banner.style.display = 'none';
+      updateCookiePadding();
+    };
+
+    // Adjust layout padding
+    function updateCookiePadding() {
+      const visible = banner && banner.style.display !== 'none';
+      const h = visible ? (banner.offsetHeight || 0) : 0;
+      document.documentElement.style.setProperty('--cookieH', h + 'px');
+    }
+
+    window.addEventListener('load', updateCookiePadding);
+    window.addEventListener('resize', updateCookiePadding);
+  })();
+</script>
+
+
   </div>
 </body>
 </html>
