@@ -301,6 +301,37 @@ var laneSystem = {
     setTimeout(() => arrow.remove(), 300);
   }
 };
+
+// --- Helper: render players list with flags ---
+function updateLobbyPlayers(players, opts={}) {
+  var playerList = document.getElementById('playerList');
+  if (!playerList) return;
+  playerList.innerHTML = '';
+  Object.keys(players||{}).forEach(function(pid){
+    var p = players[pid];
+    var div = document.createElement('div');
+    div.className = 'player-entry';
+    if (opts.hostSocketId && p.socketId === opts.hostSocketId) div.classList.add('host');
+    if (p.isBot) div.classList.add('bot-player');
+    var avatar = document.createElement('img');
+    avatar.style.width = '24px'; avatar.style.height = '24px'; avatar.style.imageRendering = 'pixelated';
+    var upper = (p.name||'').toUpperCase();
+    if (upper.includes('TAMAGO')) { avatar.src = 'images/tamago_nigri_1.png'; }
+    else if (upper.includes('SALMON')) { avatar.src = 'images/salmon_nigiri_1.png'; }
+    else if (upper.includes('MAKI')) { avatar.src = 'images/maki_roll_1.png'; }
+    else if (upper.includes('MAGURO')) { avatar.src = 'images/tuna_sushi_1.png'; }
+    else { avatar.src = 'images/maki_roll_1.png'; }
+    var flagSpan = document.createElement('span');
+    flagSpan.className = 'lobby-flag';
+    try { flagSpan.textContent = flagEmojiSafe((p.country||'UN')); } catch(e) { flagSpan.textContent = '🏳️'; }
+    var label = document.createElement('span');
+    label.textContent = (p.name||'RUNNER').toUpperCase() + (p.isBot ? ' [BOT]' : '');
+    div.appendChild(avatar);
+    div.appendChild(flagSpan);
+    div.appendChild(label);
+    playerList.appendChild(div);
+  });
+}
 /* ------------------------------
    DEFENSE + STAMINA SYSTEM
 ------------------------------ */
@@ -2436,6 +2467,14 @@ function resetAllUIElements() {
     joinBtn.style.opacity = '1';
   }
 
+  // ✅ Ensure country selector is enabled
+  var countrySelect = document.getElementById('countrySelect');
+  if (countrySelect) {
+    countrySelect.disabled = false;
+    countrySelect.style.pointerEvents = 'auto';
+    countrySelect.style.opacity = '1';
+  }
+
   var startBtn = document.getElementById('startBtn');
   if (startBtn) startBtn.style.display = 'none';
 
@@ -2690,7 +2729,11 @@ socket.on('playerJoined', function (data) {
       label.textContent = player.name.toUpperCase() + (player.isBot ? ' [BOT]' : '');
 
       div.appendChild(avatar);
-      div.appendChild(label);
+        var flagSpan = document.createElement('span');
+  flagSpan.className = 'lobby-flag';
+  try { flagSpan.textContent = flagEmojiSafe((player.country || 'UN')); } catch(e) { flagSpan.textContent = '🏳️'; }
+  div.appendChild(flagSpan);
+div.appendChild(label);
       playerList.appendChild(div);
     });
 
@@ -2901,7 +2944,7 @@ socket.on('endRace', (data) => {
   // Show results
   setTimeout(function () {
     showResults();
-  }, 800);
+  }, 400); // Reduced from 800ms to 400ms for faster results screen
 });
 
 
@@ -3011,6 +3054,15 @@ socket.on('resetRoom', function(data) {
   var counterEl = document.getElementById('playerCounter');
   if (counterEl) counterEl.textContent = 'Players joined: 0/4';
 
+  // ✅ Ensure country selector is enabled and clickable
+  var countrySelect = document.getElementById('countrySelect');
+  if (countrySelect) {
+    countrySelect.disabled = false;
+    countrySelect.style.pointerEvents = 'auto';
+    countrySelect.style.opacity = '1';
+    console.log('[RESET] Country selector re-enabled');
+  }
+
   // ✅ Restart lobby music
   var bgMusic = document.getElementById('bgMusic');
   if (bgMusic && bgMusic.paused) {
@@ -3108,7 +3160,9 @@ function setupLanes() {
           playerName += ' [BOT]';
           nameLabel.style.opacity = '0.8';
         }
-        nameLabel.textContent = playerName;
+        var _cc = (gameState.players[i].country || 'UN');
+        var _flag = (typeof flagEmojiSafe === 'function') ? flagEmojiSafe(_cc) : '🏳️';
+        nameLabel.innerHTML = '<span class="name-flag">' + _flag + '</span>' + playerName;
         nameLabel.style.color = getPlayerColor(i);
         nameLabel.style.display = 'block';
         nameLabel.style.visibility = 'visible';
@@ -3551,7 +3605,7 @@ function checkFinish(playerId) {
     // First finisher -> grace window to avoid instant DNFs
     if (finishedCount === 1) {
       console.log('[FINISH] 🏁 First finisher — starting grace window...');
-      const GRACE_MS = 3000;
+      const GRACE_MS = 600; // Reduced from 3000ms to 600ms for faster results
 
       socket.emit('finishWindowStarted', { roomId: gameState.roomId, windowMs: GRACE_MS });
 
@@ -3571,7 +3625,7 @@ function checkFinish(playerId) {
     if (finishedCount === totalRacers) {
       setTimeout(function () {
         socket.emit('endRace', gameState.roomId);
-      }, 300);
+      }, 100); // Reduced from 300ms to 100ms for faster results
     }
   }
 }

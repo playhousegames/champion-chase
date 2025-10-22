@@ -58,6 +58,11 @@ app.get('/api/leaderboard', (req, res) => {
   res.json(sorted);
 });
 
+app.get('/api/records', (req, res) => {
+  res.json(records);
+});
+
+
 // ---- In-memory rooms ----
 const rooms = {};
 
@@ -76,19 +81,55 @@ function createBot(roomId, slotNum) {
 
   const botName = generatePlayerName(slotNum);
   const botId = 'bot_' + slotNum + '_' + Date.now();
+  
+  // Random country for bots - globally diverse selection
+  const BOT_COUNTRIES = [
+    'US','CA','MX','BR','AR',  // Americas
+    'GB','FR','DE','ES','IT','NL','SE','NO','PL','PT','IE','CH',  // Europe
+    'JP','CN','IN','KR','AU','NZ','SG','MY','TH','VN','ID','PH',  // Asia-Pacific
+    'ZA','NG','EG','KE','GH','MA',  // Africa
+    'AE','SA','TR','IL',  // Middle East
+    'ENG','SCO','WAL','NIR'  // UK subdivisions for variety
+  ];
+  const randomCountry = BOT_COUNTRIES[Math.floor(Math.random() * BOT_COUNTRIES.length)];
 
   room.players[slotNum] = {
     name: botName,
     id: slotNum,
     socketId: botId,
-    isBot: true
+    isBot: true,
+    country: randomCountry
   };
   room.positions[slotNum] = 20;
   room.speeds[slotNum] = 0;
 
-  console.log(`Bot ${botName} added to room ${roomId} in slot ${slotNum}`);
+  console.log(`Bot ${botName} (${randomCountry}) added to room ${roomId} in slot ${slotNum}`);
   return room.players[slotNum];
 }
+
+// ---- Records Storage (fastest time) ----
+const REC_FILE = path.join(DATA_DIR, 'records.json');
+let records = { fastest: null }; // { time, country, name, dateISO }
+
+try {
+  if (fs.existsSync(REC_FILE)) {
+    const parsed = JSON.parse(fs.readFileSync(REC_FILE, 'utf8'));
+    if (parsed && typeof parsed === 'object') records = parsed;
+  }
+} catch (e) {
+  console.warn('Failed to load records, starting fresh:', e);
+  records = { fastest: null };
+}
+
+function saveRecords() {
+  try {
+    fs.writeFileSync(REC_FILE, JSON.stringify(records, null, 2));
+    console.log('💾 Records saved');
+  } catch (e) {
+    console.warn('Failed to save records:', e);
+  }
+}
+
 
 // Start countdown and fill with bots after
 function startRoomCountdown(roomId) {
@@ -471,14 +512,30 @@ socket.on('checkFinish', ({ roomId: rid, playerId, finishTime }) => {
       .map(([pid, time]) => ({ playerId: pid, time }))
       .sort((a, b) => a.time - b.time);
 
-    if (finishArray.length) {
-      const winnerId = finishArray[0].playerId;
-      const winner   = room.players[winnerId];
-      if (winner && winner.country) {
-        recordWin(winner.country);
-        room.winnerRecorded = true; // prevent double count anywhere else
-      }
-    }
+if (finishArray.length) {
+  const winnerId = finishArray[0].playerId;
+  const bestTime  = finishArray[0].time;
+  const winner    = room.players[winnerId];
+
+  // Existing: record win by country
+  if (winner && winner.country) {
+    recordWin(winner.country);
+    room.winnerRecorded = true;
+  }
+
+  // NEW: update fastest run
+  if (!records.fastest || (bestTime > 0 && bestTime < records.fastest.time)) {
+    records.fastest = {
+      time: bestTime,
+      country: winner && winner.country ? winner.country : null,
+      name: winner && winner.name ? winner.name : null,
+      dateISO: new Date().toISOString()
+    };
+    saveRecords();
+    console.log(`🚀 New fastest run: ${bestTime.toFixed(3)}s by ${records.fastest.country || '??'}`);
+  }
+}
+
 
     io.to(rid).emit('endRace', {
       players: room.players,
@@ -499,14 +556,30 @@ socket.on('checkFinish', ({ roomId: rid, playerId, finishTime }) => {
       .map(([pid, time]) => ({ playerId: pid, time }))
       .sort((a, b) => a.time - b.time);
 
-    if (finishArray.length > 0) {
-      const winnerId = finishArray[0].playerId;
-      const winner = room.players[winnerId];
-      
-      if (winner && winner.country) {
-        recordWin(winner.country);
-      }
-    }
+if (finishArray.length) {
+  const winnerId = finishArray[0].playerId;
+  const bestTime  = finishArray[0].time;
+  const winner    = room.players[winnerId];
+
+  // Existing: record win by country
+  if (winner && winner.country) {
+    recordWin(winner.country);
+    room.winnerRecorded = true;
+  }
+
+  // NEW: update fastest run
+  if (!records.fastest || (bestTime > 0 && bestTime < records.fastest.time)) {
+    records.fastest = {
+      time: bestTime,
+      country: winner && winner.country ? winner.country : null,
+      name: winner && winner.name ? winner.name : null,
+      dateISO: new Date().toISOString()
+    };
+    saveRecords();
+    console.log(`🚀 New fastest run: ${bestTime.toFixed(3)}s by ${records.fastest.country || '??'}`);
+  }
+}
+
 
     io.to(rid).emit('endRace', {
       players: room.players,

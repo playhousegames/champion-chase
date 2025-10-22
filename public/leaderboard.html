@@ -128,6 +128,29 @@
       50% { transform: translateY(-10px); }
     }
 
+
+.fastest-banner {
+  font-family: 'Press Start 2P', monospace; /* match your retro font */
+  font-size: 14px;          /* smaller size */
+  line-height: 1.6;
+  color: #ffeb3b;           /* same gold as your leaderboard text */
+  text-shadow: 2px 2px 0 #000;
+  text-align: center;
+  margin: 16px 0 12px 0;
+  word-spacing: 2px;
+}
+
+.fastest-banner .flag {
+  margin-left: 4px;
+}
+
+@media (min-width: 768px) {
+  .fastest-banner {
+    font-size: 16px;
+  }
+}
+
+
     /* === Leaderboard Table (updated & mobile-safe) === */
 .container {
   padding-left: calc(20px + env(safe-area-inset-left));
@@ -327,8 +350,12 @@
       </div>
     </div>
 
-    <div class="trophy-header">🏆</div>
-    <h1 class="section-title">Country Leaderboard</h1>
+    <div id="fastestBanner" class="fastest-banner" aria-live="polite">
+  ⏱️ Loading fastest run…
+</div>
+<h1 class="section-title">Country Leaderboard</h1>
+
+
 
 
     <div id="loading" class="loading">Loading rankings...</div>
@@ -494,5 +521,67 @@
     // Refresh every 30 seconds
     setInterval(loadLeaderboard, 30000);
   </script>
+
+<script>
+function isoToFlagEmoji(code) {
+  if (!code || typeof code !== 'string') return '🏳️';
+  const cc = code.toUpperCase();
+  
+  // Custom flags for subdivisions
+  const CUSTOM_FLAGS = {
+    "ENG": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}",
+    "SCO": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+    "WAL": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}",
+    "NIR": "\u{1F1EC}\u{1F1E7}", // Northern Ireland (uses UK flag)
+    "UN": "\u{1F1FA}\u{1F1F3}"
+  };
+  
+  // Check for custom flags first
+  if (CUSTOM_FLAGS[cc]) {
+    return CUSTOM_FLAGS[cc];
+  }
+  
+  // Standard 2-letter ISO codes only
+  if (/^[A-Z]{2}$/.test(cc)) {
+    const A = 0x1F1E6;
+    return String.fromCodePoint(
+      A + (cc.charCodeAt(0) - 65),
+      A + (cc.charCodeAt(1) - 65)
+    );
+  }
+  
+  return '🏳️';
+}
+
+async function loadFastest() {
+  const el = document.getElementById('fastestBanner');
+  if (!el) return;
+
+  try {
+    const r = await fetch('/api/records', { cache: 'no-store' });
+    if (!r.ok) throw new Error('no records endpoint');
+    const rec = await r.json();
+    const best = rec.fastest;
+
+    if (best && typeof best.time === 'number') {
+      const t = best.time.toFixed(3) + 's';
+      const flag = isoToFlagEmoji(best.country || '');
+      const country = best.country || 'Unknown';
+      const name = best.name || 'Anonymous';
+      el.innerHTML = `⏱️ Fastest Run: <strong>${t}</strong> ${flag} <br><small>${country} — ${name}</small>`;
+    } else {
+      el.innerHTML = '⏱️ Be the first to set a world record!';
+    }
+  } catch (e) {
+    console.error('Fastest run fetch error', e);
+    el.innerHTML = '🏆';
+  }
+}
+
+loadFastest();
+setInterval(loadFastest, 30000);
+</script>
+
+
 </body>
 </html>
