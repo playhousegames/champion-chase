@@ -1788,18 +1788,16 @@
   </div>
 
   <!-- Country selector -->
-  <div style="display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap;">
-    <label for="countrySelect" style="color:#fff;font-size:.8rem;">Flag:</label>
-    <select id="countrySelect" style="flex:1;font-size:1rem;padding:8px;border:2px solid #222;border-radius:8px;">
-      <option value="">None / Neutral</option>
-    </select>
-    <span id="countryPreview" style="font-size:1.5rem;min-width:1.6rem;text-align:center;">🇺🇳</span>
-    <label style="color:#ccc;font-size:.85rem;display:flex;gap:6px;align-items:center;">
-      <input id="hideFlagsToggle" type="checkbox"> Hide flags
-    </label>
-  </div>
+<div style="display:flex;flex-direction:column;gap:4px;margin:6px 0;">
+  <label for="countrySelect" style="color:#fff;font-size:.85rem;">
+    Choose your flag:
+  </label>
+  <select id="countrySelect" style="font-size:1rem;padding:8px;border:2px solid #222;border-radius:8px;">
+    <option value="">None / Neutral</option>
+  </select>
+</div>
 
-  <p id="countryHint" style="font-size:0.9em;color:#aaa;margin:4px 0 10px 4px;font-style:italic;">
+  <p id="countryHint" style="font-size:0.5em;color:#aaa;margin:4px 0 10px 4px;font-style:italic;">
   Neutral players don’t appear on the leaderboard.
 </p>
 
@@ -2153,7 +2151,7 @@ const ISO_COUNTRIES = [
     <!-- Google Adsense -->
 
 
-<div id="cookieBanner" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#fff;padding:10px;text-align:center;z-index:6000;display:none;">
+<div id="cookieBanner" style="font-size:0.6em;position:fixed;bottom:0;left:0;right:0;background:#000;color:#fff;padding:10px;text-align:center;z-index:6000;display:none;">
   This site uses cookies for analytics only. No ads.
   <button id="acceptCookies" style="margin-left:8px;padding:4px 10px;border:none;background:#444;color:#fff;border-radius:4px;cursor:pointer;">
     OK

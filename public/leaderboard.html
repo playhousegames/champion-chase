@@ -38,40 +38,46 @@
     }
 
     /* Logo Styles */
-    .logo-container {
-      margin-bottom: 32px;
-      text-align: center;
-    }
+/* === SUSHI SPRINT LOGO — EXACT MATCH TO index.html === */
+/* Center the whole logo block */
+.logo-container {
+  margin-bottom: 48px;
+  text-align: center;   /* <-- center contents */
+}
 
-    .main-logo {
-      position: relative;
-      font-size: clamp(2rem, 6vw, 3.5rem);
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      line-height: 0.9;
-    }
+/* Logo element needs intrinsic width so it can be centered */
+.main-logo {
+  position: relative;
+  display: inline-block;   /* <-- lets it center inside .logo-container */
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 0.9;
+}
 
-    .logo-shadow {
-      position: absolute;
-      inset: 0;
-      color: var(--ocean-blue);
-      text-shadow: 
-        4px 4px 0px currentColor,
-        -4px -4px 0px currentColor,
-        4px -4px 0px currentColor,
-        -4px 4px 0px currentColor;
-      -webkit-text-stroke: 4px currentColor;
-    }
+.logo-shadow {
+  position: absolute;
+  inset: 0;
+  color: var(--ocean-blue);
+  text-shadow:
+    4px 4px 0 currentColor, -4px -4px 0 currentColor,
+    4px -4px 0 currentColor, -4px 4px 0 currentColor,
+    4px 0 0 currentColor, -4px 0 0 currentColor,
+    0 4px 0 currentColor, 0 -4px 0 currentColor;
+  -webkit-text-stroke: 4px currentColor;
+}
+.logo-main {
+  position: relative;
+  z-index: 10;
+  background: linear-gradient(45deg, var(--hot-tuna-red), var(--golden-tamago));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
-    .logo-main {
-      position: relative;
-      z-index: 10;
-      background: linear-gradient(45deg, var(--hot-tuna-red), var(--golden-tamago));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
+
+
 
     .japanese-subtitle {
       text-align: center;
@@ -102,7 +108,7 @@
       color: var(--pure-rice-white);
     }
 
-    h1 {
+    h1.section-title {
       text-align: center;
       font-size: clamp(1.2rem, 4vw, 1.8rem);
       color: var(--golden-tamago);
@@ -122,77 +128,99 @@
       50% { transform: translateY(-10px); }
     }
 
-    .leaderboard-table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0 8px;
-      margin: 20px 0;
-    }
+    /* === Leaderboard Table (updated & mobile-safe) === */
+.container {
+  padding-left: calc(20px + env(safe-area-inset-left));
+  padding-right: calc(20px + env(safe-area-inset-right));
+}
 
-    .leaderboard-table thead th {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--golden-tamago);
-      padding: 12px;
-      text-align: left;
-      font-size: 0.8rem;
-      letter-spacing: 1px;
-      border-bottom: 3px solid var(--hot-tuna-red);
-    }
+.leaderboard-table {
+  width: 100%;
+  table-layout: fixed; /* ensure stable column widths */
+  border-collapse: separate;
+  border-spacing: 0 8px;
+  margin: 20px 0;
+}
 
-    .leaderboard-table tbody tr {
-      background: rgba(255, 255, 255, 0.05);
-      transition: all 0.3s ease;
-    }
+.leaderboard-table thead th {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--golden-tamago);
+  padding: 12px;
+  text-align: left;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  border-bottom: 3px solid var(--hot-tuna-red);
+}
 
-    .leaderboard-table tbody tr:hover {
-      background: rgba(255, 255, 255, 0.15);
-      transform: translateX(5px);
-    }
+.leaderboard-table tbody tr {
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
 
-    .leaderboard-table tbody tr.top-3 {
-      background: rgba(255, 215, 0, 0.15);
-      box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-    }
+.leaderboard-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateX(5px);
+}
 
-    .leaderboard-table td {
-      padding: 12px;
-      font-size: 0.9rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
+.leaderboard-table tbody tr.top-3 {
+  background: rgba(255, 215, 0, 0.15);
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
 
-    .rank-cell {
-      width: 60px;
-      text-align: center;
-      font-weight: bold;
-    }
+.leaderboard-table td {
+  padding: 12px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
 
-    .rank-1 { color: #FFD700; }
-    .rank-2 { color: #C0C0C0; }
-    .rank-3 { color: #CD7F32; }
+.rank-cell {
+  width: 72px;
+  text-align: center;
+  font-weight: bold;
+}
 
-    .medal {
-      font-size: 1.5rem;
-      margin-right: 5px;
-    }
+.rank-1 { color: #FFD700; }
+.rank-2 { color: #C0C0C0; }
+.rank-3 { color: #CD7F32; }
 
-    .flag-cell {
-      width: 60px;
-      text-align: center;
-      font-size: 1.8rem;
-    }
+.medal {
+  font-size: 1.5rem;
+  margin-right: 5px;
+}
 
-    .country-cell {
-      font-size: 0.85rem;
-      letter-spacing: 0.5px;
-    }
+.flag-cell {
+  width: 64px;
+  text-align: center;
+  font-size: 1.8rem;
+}
 
-    .wins-cell {
-      width: 100px;
-      text-align: right;
-      color: var(--electric-wasabi);
-      font-weight: bold;
-      font-size: 1rem;
-    }
+.country-cell {
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wins-cell {
+  width: 88px;
+  text-align: right;
+  color: var(--electric-wasabi);
+  font-weight: bold;
+  font-size: 1rem;
+  padding-right: max(12px, calc(12px + env(safe-area-inset-right)));
+  white-space: nowrap;
+}
+
+/* Mobile tweaks for iPhone and similar */
+@media (max-width: 600px) {
+  .leaderboard-table td {
+    padding: 8px 6px;
+  }
+  .rank-cell { width: 64px; }
+  .flag-cell { width: 56px; }
+  .wins-cell { width: 80px; }
+}
+
 
     .play-button {
       display: inline-flex;
@@ -300,7 +328,8 @@
     </div>
 
     <div class="trophy-header">🏆</div>
-    <h1>Country Leaderboard</h1>
+    <h1 class="section-title">Country Leaderboard</h1>
+
 
     <div id="loading" class="loading">Loading rankings...</div>
     
@@ -319,6 +348,13 @@
           <th class="wins-cell">Wins</th>
         </tr>
       </thead>
+      <colgroup>
+  <col style="width:72px" />
+  <col style="width:64px" />
+  <col /> <!-- flexible country name -->
+  <col style="width:88px" />
+</colgroup>
+
       <tbody id="leaderboardBody">
         <!-- Populated by JavaScript -->
       </tbody>
