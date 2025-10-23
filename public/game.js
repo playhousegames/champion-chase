@@ -2428,12 +2428,8 @@ function resetAllUIElements() {
   if (lc) { lc.classList.remove('active','final3','go'); delete lc.dataset.lastTick; }
   if (ct) ct.textContent = '';
 
-  // Force sprite reload next time
-  if (window.gameGraphics && gameGraphics.characters) {
-    Object.keys(gameGraphics.characters).forEach(charId => {
-      if (gameGraphics.characters[charId]) gameGraphics.characters[charId].loaded = false;
-    });
-  }
+  // Don't mark sprites as not loaded - they're already in memory and reusable
+  // Removed the code that was setting character.loaded = false on reset
 
   // 🔧 Reset state last, then clear the resetting flag
   gameState.raceStarted = false;
@@ -3207,15 +3203,15 @@ function startRunnerAnimation(playerId) {
 
   var character = gameGraphics.characters[playerId];
   
-  // Only set up frames if they aren't already set
-  if (character && character.loaded && character.frames && character.frames.length > 0) {
+  // Set up frames if character has them (regardless of loaded flag)
+  if (character && character.frames && character.frames.length > 0) {
     if (!runner.dataset.frames) {
       runner.dataset.frames = JSON.stringify(character.frames);
       runner.dataset.currentFrame = '0';
     }
     
     // Always ensure we have a valid background image
-    if (!runner.style.backgroundImage || runner.style.backgroundImage === 'none') {
+    if (!runner.style.backgroundImage || runner.style.backgroundImage === 'none' || runner.style.backgroundImage === '') {
       runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
     }
     
@@ -3225,6 +3221,11 @@ function startRunnerAnimation(playerId) {
     runner.style.backgroundPosition = 'center';
     runner.style.width = '32px';
     runner.style.height = '32px';
+    
+    // Make sure runner is visible
+    runner.style.display = 'block';
+    runner.style.visibility = 'visible';
+    runner.style.opacity = '1';
   }
 
   // Only start interval if we have frames and it's not already running
