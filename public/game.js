@@ -1825,11 +1825,18 @@ var gameGraphics = {
     if (!runner) return;
     var character = this.characters[playerId];
     if (!character || !character.loaded || character.frames.length === 0) return;
+    
+    // ✅ CRITICAL FIX: Ensure sprite is visible
+    runner.style.display = 'block';
+    runner.style.visibility = 'visible';
+    runner.style.opacity = '1';
+    
     runner.style.width = '32px';
     runner.style.height = '32px';
     runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
     runner.style.backgroundSize = 'cover';
     runner.style.backgroundRepeat = 'no-repeat';
+    runner.style.backgroundPosition = 'center';
     runner.textContent = '';
     runner.innerHTML = '';
     runner.dataset.frames = JSON.stringify(character.frames);
@@ -1864,11 +1871,18 @@ var gameGraphics = {
  
     var newImageUrl = frames[nextFrame];
     if (newImageUrl) {
+      // ✅ CRITICAL FIX: Always ensure sprite is visible when animating
+      runner.style.display = 'block';
+      runner.style.visibility = 'visible';
+      runner.style.opacity = '1';
+      
       runner.style.backgroundImage = 'url(' + newImageUrl + ')';
       runner.dataset.currentFrame = String(nextFrame);
       runner.style.backgroundSize = 'cover';
       runner.style.backgroundRepeat = 'no-repeat';
       runner.style.backgroundPosition = 'center';
+      runner.style.width = '32px';
+      runner.style.height = '32px';
     }
   }
 };
