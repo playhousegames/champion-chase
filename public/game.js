@@ -2776,9 +2776,25 @@ socket.on('roomFull', function (payload) {
   alert('Room is full (' + max + ').');
 });
 
-socket.on('slotTaken', function (payload) {
-  var n = payload && payload.playerNum ? payload.playerNum : '?';
-  alert('Runner ' + n + ' is already taken. Please choose another slot.');
+// FIXED: Room full handler - server will find you a new room
+socket.on('roomFull', function () {
+  console.log('[JOIN] Room is full, requesting new room...');
+  alert('That room is full! Finding you another race...');
+  gameState.joinInProgress = false;
+  gameState.roomId = null;  // Clear room ID to get a new one
+  setTimeout(function() {
+    joinRoom();  // Try joining again - will get assigned to a new room
+  }, 500);
+});
+
+// Handle room not found
+socket.on('roomNotFound', function () {
+  console.log('[JOIN] Room not found, requesting new room...');
+  gameState.joinInProgress = false;
+  gameState.roomId = null;
+  setTimeout(function() {
+    joinRoom();
+  }, 500);
 });
 
 socket.on('gameStarted', function (data) {
@@ -4042,26 +4058,10 @@ function joinRoom() {
 
   console.log('[JOIN] Room ID exists, proceeding to join...');
 
-  // Find available slot
-  var slot = null;
-  for (var i = 1; i <= 4; i++) {
-    if (!gameState.players[i]) { 
-      slot = i; 
-      break; 
-    }
-  }
-
-  if (!slot) {
-    alert('All runner slots are taken!');
-    console.log('[JOIN] ERROR: No slots available');
-    gameState.joinInProgress = false; // let user try again later
-    return;
-  }
-
-  console.log('[JOIN] Found available slot:', slot);
+  // FIXED: No need to find slot - server will automatically assign one!
+  // Just send country code and room ID
 
   // Get country code
-
   // Accept 2-letter ISO codes OR our custom subdivision codes
   var cc = (localStorage.getItem('sushiCountry') || '').toUpperCase();
   const ALLOWED3 = new Set(['ENG','SCO','WAL','NIR','JE','GG','UN']);
@@ -4069,7 +4069,6 @@ function joinRoom() {
 
   var payload = {
     roomId: gameState.roomId,
-    playerNum: slot,
     countryCode: cc
   };
   console.log('[JOIN] Emitting joinRoom with:', payload);

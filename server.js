@@ -1,4 +1,4 @@
-// --- Sushi Sprint server (Express + Socket.IO) ---
+// --- Sushi Sprint server (Express + Socket.IO) - FIXED VERSION ---
 const express  = require('express');
 const http     = require('http');
 const socketIo = require('socket.io');
@@ -277,138 +277,75 @@ function recordWin(countryCode) {
   const valid = ((/^[A-Z]{2}$/.test(cc) || ALLOWED3.has(cc)) && cc !== 'UN');
   if (!valid) return;
   countryLeaderboard[cc] = (countryLeaderboard[cc] || 0) + 1;
-  console.log(`📊 Leaderboard updated: ${cc} now has ${countryLeaderboard[cc]} wins`);
   saveLeaderboard();
+  console.log(`🏆 Win recorded for ${cc}. Total: ${countryLeaderboard[cc]}`);
 }
 
-// Automatically reset a room a few seconds after race ends
-function scheduleAutoReset(rid, delayMs = 10000) {
+function generatePlayerName(slotId) {
+  const adjectives = ['Speedy','Swift','Turbo','Rapid','Lightning','Flash','Blazing','Rocket'];
+  const nouns = ['Sushi','Tuna','Salmon','Nigiri','Maki','Wasabi','Tempura','Ramen'];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  return adj + ' ' + noun;
+}
+
+function startGame(rid) {
   const room = rooms[rid];
-  if (!room) return;
-
-  if (room.autoResetTimer) {
-    clearTimeout(room.autoResetTimer);
-  }
-
-  room.autoResetTimer = setTimeout(() => {
-    console.log(`Auto-resetting room ${rid} after race`);
-    io.to(rid).emit('resetRoom', rid);
-
-    rooms[rid] = {
-      players: {},
-      positions: {},
-      speeds: {},
-      gameStarted: false,
-      finishTimes: {},
-      isResetting: false,
-      hostSocketId: null,
-      tapStreaks: {},
-      stopTimers: {},
-      autoResetTimer: null
-    };
-  }, delayMs);
-}
-
-// Helper function to start game
-function startGame(roomId) {
-  const room = rooms[roomId];
   if (!room || room.gameStarted) return;
 
-  // Stop countdown when game starts
-  stopRoomCountdown(roomId);
+  const playerCount = Object.keys(room.players).length;
+  if (playerCount < MIN_TO_START) {
+    console.log(`Cannot start room ${rid}, only ${playerCount} players`);
+    return;
+  }
 
   room.gameStarted = true;
-  room.finishTimes = {};
-  const startPos = 20;
-  
-  Object.keys(room.players).forEach(pid => {
-    room.positions[pid] = startPos;
-    room.speeds[pid] = 0;
-    
-    if (room.players[pid].isBot) {
-      startBotAI(roomId, pid, 4000);
-    }
-  });
-  
-  io.to(roomId).emit('gameStarted', {
+  console.log(`🏁 Starting game in room ${rid} with ${playerCount} players`);
+
+  io.to(rid).emit('gameStarted', {
+    players: room.players,
     positions: room.positions,
     speeds: room.speeds,
-    players: room.players
+    finishTimes: room.finishTimes
   });
-  
-  console.log(`Race started in ${roomId} with ${Object.keys(room.players).length} players`);
-}
 
-// ---- Helpers ----
-function generateRoomCode(len = 6) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < len; i++) code += chars[(Math.random() * chars.length) | 0];
-  return code;
-}
-
-const SUSHIS = ['Tamago', 'Salmon', 'Maki', 'Maguro'];
-const ADJS   = ['Speedy', 'Spicy', 'Rolling', 'Flying', 'Rocket', 'Neon', 'Mega', 'Hyper'];
-
-function generatePlayerName(slotNum) {
-  const a = ADJS[Math.floor(Math.random() * ADJS.length)];
-  const b = SUSHIS[(slotNum - 1) % SUSHIS.length];
-  const n = (Math.random() * 90 + 10) | 0;
-  return `${a} ${b} ${n}`;
-}
-
-function getOrCreateWaitingRoom() {
-  for (const [rid, room] of Object.entries(rooms)) {
-    const count = Object.keys(room.players).length;
-    if (!room.gameStarted && !room.isResetting && count < MAX_PLAYERS) {
-      return rid;
+  // Start bot AI for each bot player AFTER countdown (3-2-1-GO = ~3.5 seconds)
+  for (const [playerId, player] of Object.entries(room.players)) {
+    if (player.isBot) {
+      // Wait for countdown to finish (3 seconds) + small random delay
+      const countdownDelay = 3500; // 3.5 seconds for countdown
+      const randomDelay = Math.random() * 500; // 0-500ms variance
+      const totalDelay = countdownDelay + randomDelay;
+      startBotAI(rid, playerId, totalDelay);
+      console.log(`🤖 Bot ${player.name} will start in ${totalDelay}ms (after countdown)`);
     }
   }
-  let rid = generateRoomCode();
-  while (rooms[rid]) rid = generateRoomCode();
-  rooms[rid] = {
-    players: {},
-    positions: {},
-    speeds: {},
-    gameStarted: false,
-    finishTimes: {},
-    isResetting: false,
-    hostSocketId: null,
-    tapStreaks: {},
-    stopTimers: {}
-  };
-  return rid;
 }
 
-// ---- Sockets ----
+// ---- Socket.io ----
 io.on('connection', (socket) => {
-  console.log('Runner connected:', socket.id);
+  console.log('New runner connected:', socket.id);
 
+  // FIXED: Handle Quick Race - automatically find or create a room with space
   socket.on('quickRace', () => {
-    const rid = getOrCreateWaitingRoom();
+    console.log('Quick race requested by:', socket.id);
 
-    socket.join(rid);
-    socket.roomId = rid;
+    // Find a room with space or create new one
+    let assignedRoom = null;
+    
+    // Look for existing room with space
+    for (const [rid, room] of Object.entries(rooms)) {
+      if (!room.gameStarted && Object.keys(room.players).length < MAX_PLAYERS) {
+        assignedRoom = rid;
+        console.log(`Assigning player to existing room: ${rid}`);
+        break;
+      }
+    }
 
-    socket.emit('roomAssigned', { roomId: rid, maxPlayers: MAX_PLAYERS, minToStart: MIN_TO_START });
-
-    const room = rooms[rid];
-    socket.emit('playerJoined', {
-      players: room.players,
-      positions: room.positions,
-      speeds: room.speeds,
-      hostSocketId: room.hostSocketId,
-      maxPlayers: MAX_PLAYERS,
-      minToStart: MIN_TO_START
-    });
-  });
-
-  socket.on('joinRoom', (data = {}) => {
-    const { roomId, playerNum, countryCode } = data;
-    const rid = ((socket.roomId || roomId || 'ABC123') + '').toUpperCase();
-
-    if (!rooms[rid]) {
-      rooms[rid] = {
+    // Create new room if none available
+    if (!assignedRoom) {
+      assignedRoom = 'ROOM_' + Date.now();
+      rooms[assignedRoom] = {
         players: {},
         positions: {},
         speeds: {},
@@ -417,20 +354,55 @@ io.on('connection', (socket) => {
         isResetting: false,
         hostSocketId: null,
         tapStreaks: {},
-        stopTimers: {}
+        stopTimers: {},
+        autoResetTimer: null,
+        winnerRecorded: false
       };
+      console.log(`Created new room: ${assignedRoom}`);
     }
-    const room = rooms[rid];
-    if (room.isResetting) return;
 
-    if (Object.keys(room.players).length >= MAX_PLAYERS) {
-      socket.emit('roomFull', { max: MAX_PLAYERS });
+    socket.emit('roomAssigned', { roomId: assignedRoom });
+  });
+
+  // FIXED: Join room with automatic slot assignment - NO MORE "slot taken" errors!
+  socket.on('joinRoom', ({ roomId: rid, countryCode }) => {
+    const room = rooms[rid];
+    if (!room) {
+      console.log(`Room ${rid} does not exist`);
+      socket.emit('roomNotFound');
       return;
     }
 
-    const existing = room.players[playerNum];
-    if (existing && existing.socketId !== socket.id && !existing.isBot) {
-      socket.emit('slotTaken', { playerNum });
+    // Check if this socket is already in the room
+    for (const [pid, player] of Object.entries(room.players)) {
+      if (player.socketId === socket.id) {
+        console.log(`Socket ${socket.id} already in room ${rid} as player ${pid}`);
+        // Re-send player joined so client syncs
+        socket.emit('playerJoined', {
+          players: room.players,
+          positions: room.positions,
+          speeds: room.speeds,
+          hostSocketId: room.hostSocketId,
+          maxPlayers: MAX_PLAYERS,
+          minToStart: MIN_TO_START
+        });
+        return;
+      }
+    }
+
+    // AUTOMATICALLY find first available slot - no more manual selection!
+    let availableSlot = null;
+    for (let i = 1; i <= MAX_PLAYERS; i++) {
+      if (!room.players[i]) {
+        availableSlot = i;
+        break;
+      }
+    }
+
+    // If room is full, notify user
+    if (!availableSlot) {
+      console.log(`Room ${rid} is full`);
+      socket.emit('roomFull');
       return;
     }
 
@@ -438,15 +410,22 @@ io.on('connection', (socket) => {
    const raw = (countryCode || '').toString().toUpperCase();
     const cc = (/^[A-Z]{2}$/.test(raw) || ALLOWED3.has(raw)) ? raw : 'UN';
 
-    const safeName = generatePlayerName(playerNum);
-    room.players[playerNum] = { name: safeName, id: playerNum, socketId: socket.id, country: cc };
-    room.positions[playerNum] = 20;
-    room.speeds[playerNum] = 0;
+    const safeName = generatePlayerName(availableSlot);
+    room.players[availableSlot] = { 
+      name: safeName, 
+      id: availableSlot, 
+      socketId: socket.id, 
+      country: cc 
+    };
+    room.positions[availableSlot] = 20;
+    room.speeds[availableSlot] = 0;
 
     if (!room.hostSocketId) room.hostSocketId = socket.id;
 
     socket.join(rid);
     socket.roomId = rid;
+
+    console.log(`✅ Player ${socket.id} joined room ${rid} in slot ${availableSlot} (${cc})`);
 
     io.to(rid).emit('playerJoined', {
       players: room.players,
@@ -597,9 +576,7 @@ if (finishArray.length) {
     socket.to(rid).emit('playerChangedLane', { playerId, lane });
   });
 
-// Replace your current handler:
 socket.on('resetRoom', (rid) => {
-  // NEW: fallback to socket.roomId
   const roomId = (rid || socket.roomId || '').toUpperCase();
   const room = rooms[roomId];
   if (!room) return;
@@ -622,7 +599,8 @@ socket.on('resetRoom', (rid) => {
     hostSocketId: null,
     tapStreaks: {},
     stopTimers: {},
-    autoResetTimer: null
+    autoResetTimer: null,
+    winnerRecorded: false
   };
 
   // Keep sockets in the same Socket.IO room; just reset game state
@@ -634,7 +612,6 @@ socket.on('resetRoom', (rid) => {
     finishTimes: {}
   });
 
-  // NEW: lightweight ACK so clients can clear UI locks
   io.to(roomId).emit('roomReset', { roomId });
 
   console.log(`Room ${roomId} has been reset and clients notified`);
