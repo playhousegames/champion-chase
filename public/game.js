@@ -1869,12 +1869,50 @@ var gameGraphics = {
     this.loadCharacter3Frames();
     this.loadCharacter4Frames();
   },
+  
+  // NEW: Force update all sprites (call when game starts to ensure visibility)
+  ensureAllSpritesVisible: function() {
+    console.log('[SPRITE] Ensuring all sprites are visible...');
+    for (var i = 1; i <= 4; i++) {
+      var runner = document.getElementById('runner' + i);
+      if (!runner) continue;
+      
+      var character = this.characters[i];
+      if (!character || !character.frames || character.frames.length === 0) continue;
+      
+      // Force sprite to be visible with proper styling
+      runner.style.display = 'block';
+      runner.style.visibility = 'visible';
+      runner.style.opacity = '1';
+      runner.style.width = '32px';
+      runner.style.height = '32px';
+      runner.style.position = 'absolute';
+      runner.style.zIndex = '2100';
+      
+      // Set background image if not already set
+      if (!runner.style.backgroundImage || runner.style.backgroundImage === 'none' || runner.style.backgroundImage === '') {
+        runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
+        runner.style.backgroundSize = 'cover';
+        runner.style.backgroundRepeat = 'no-repeat';
+        runner.style.backgroundPosition = 'center';
+      }
+      
+      // Set up frames data
+      if (!runner.dataset.frames) {
+        runner.dataset.frames = JSON.stringify(character.frames);
+        runner.dataset.currentFrame = '0';
+      }
+      
+      console.log('[SPRITE] Runner ' + i + ' is now visible');
+    }
+  },
  
   updateRunnerSprite: function(playerId) {
     var runner = document.getElementById('runner' + playerId);
     if (!runner) return;
     var character = this.characters[playerId];
-    if (!character || !character.loaded || character.frames.length === 0) return;
+    // FIX: Don't check character.loaded - set sprite even if images are still loading
+    if (!character || !character.frames || character.frames.length === 0) return;
     
     // ✅ CRITICAL FIX: Ensure sprite is visible
     runner.style.display = 'block';
@@ -1891,6 +1929,8 @@ var gameGraphics = {
     runner.innerHTML = '';
     runner.dataset.frames = JSON.stringify(character.frames);
     runner.dataset.currentFrame = '0';
+    
+    console.log('[SPRITE] Updated runner ' + playerId + ' with sprite');
   },
  
   animateSprite: function(playerId) {
@@ -2953,6 +2993,10 @@ socket.on('gameStart', function (data) {
   }
 
   setupLanes();
+  
+  // FIX: Ensure all sprites are visible before countdown starts
+  gameGraphics.ensureAllSpritesVisible();
+  
   setTimeout(startCountdown, 100);
   lockScroll(false);
 
@@ -3518,6 +3562,9 @@ function startCountdown() {
         console.log('[COUNTDOWN] Timeout complete - starting race');
         countdownEl.style.display = 'none';
         gameState.countdownActive = false;
+        
+        // FIX: One final check to ensure all sprites are visible before race starts
+        gameGraphics.ensureAllSpritesVisible();
         
         // Lock scroll during race to prevent accidental scrolling
         lockScroll(true);
