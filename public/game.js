@@ -8,6 +8,8 @@
    - Lobby chiptune music (in index.html)
    ========================================================= */
 const socket = io();
+
+
 const SPEED_MULTIPLIER = 3; // same as server
 /* ------------------------------
    1) GLOBAL STATE
@@ -42,6 +44,11 @@ function getMyPlayerId() {
   }
   return null;
 }
+
+
+
+
+// === END FIX ===
 /* ------------------------------
    KANJI EFFECTS SYSTEM - FIXED UNICODE
 ------------------------------ */
@@ -615,10 +622,27 @@ var defenseSystem = {
 function tapPress(e, playerId, btn) {
   e.preventDefault();
   e.stopPropagation();
+  
+  console.log('[TAP] tapPress called for player:', playerId);
+  console.log('[TAP] countdownActive:', gameState.countdownActive);
+  console.log('[TAP] raceStarted:', gameState.raceStarted);
+  console.log('[TAP] raceFinished:', gameState.raceFinished);
+  console.log('[TAP] isResetting:', gameState.isResetting);
  
-  if (gameState.countdownActive) return;
-  if (playerStates[playerId] && playerStates[playerId].tapsBlocked) return;
-  if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) return;
+  if (gameState.countdownActive) {
+    console.log('[TAP] ❌ Blocked by countdownActive');
+    return;
+  }
+  if (playerStates[playerId] && playerStates[playerId].tapsBlocked) {
+    console.log('[TAP] ❌ Blocked by tapsBlocked');
+    return;
+  }
+  if (!gameState.raceStarted || gameState.raceFinished || gameState.isResetting) {
+    console.log('[TAP] ❌ Blocked by race state');
+    return;
+  }
+  
+  console.log('[TAP] ✅ Tap accepted (press)');
   const side = btn.getAttribute('data-side');
  
   if (side && typeof defenseSystem !== 'undefined') {
@@ -630,32 +654,58 @@ function tapRelease(e, playerId, btn) {
   e.preventDefault();
   e.stopPropagation();
   if (btn) btn.classList.remove('pressed', 'active');
-  if (gameState.countdownActive) return;
+  
+  console.log('[TAP] tapRelease called for player:', playerId);
+  
+  if (gameState.countdownActive) {
+    console.log('[TAP] ❌ Release blocked by countdownActive');
+    return;
+  }
+  
   const side = btn ? btn.getAttribute('data-side') : null;
   var runner = document.getElementById('runner' + playerId);
  
   if (gameState.raceStarted && !gameState.raceFinished) {
+    console.log('[TAP] ✅ Processing tap release');
+    
     if (typeof comboSystem !== 'undefined') {
       comboSystem.addTap(playerId);
     }
    
-    if (!defenseSystem.spendStamina(playerId)) {
-      console.log("Exhausted!");
+    // FIX: Initialize stamina if not already done and always allow at least some taps
+    if (!defenseSystem.stamina[playerId]) {
+      defenseSystem.initStamina(playerId);
+      console.log('[TAP] Initialized stamina for player', playerId);
+    }
+    
+    // FIX: Only block if stamina is truly 0, not just low
+    if (defenseSystem.stamina[playerId] <= 0) {
+      console.log("[TAP] ❌ Exhausted! Stamina:", defenseSystem.stamina[playerId]);
       return;
     }
+    
+    // Spend stamina but don't block the tap if it fails
+    defenseSystem.spendStamina(playerId);
    
     if (runner) {
       var currentPos = parseFloat(runner.style.left) || 20;
       var predictedMovement = 8 * 3;
       var newPosition = currentPos + predictedMovement;
       runner.style.left = newPosition + 'px';
+      console.log(`[TAP] ✅ Moved runner from ${currentPos}px to ${newPosition}px`);
+    } else {
+      console.log('[TAP] ❌ Runner element not found!');
     }
    
     startRunnerAnimation(playerId);
     socket.emit('playerAction', { roomId: gameState.roomId, playerId });
+    console.log('[TAP] Emitted playerAction to server');
+    
     spawnDust(playerId);
     if (sounds.initialized) sounds.playTap();
     if (navigator.vibrate) navigator.vibrate(10);
+  } else {
+    console.log('[TAP] ❌ Release blocked - raceStarted:', gameState.raceStarted, 'raceFinished:', gameState.raceFinished);
   }
  
   if (side && typeof defenseSystem !== 'undefined') {
@@ -2455,7 +2505,8 @@ function resetAllUIElements() {
   // (optional) gameState.roomId = null; // only if you truly want to leave the room here
   playerStates = {};
 
-  lockScroll(true);
+  // Don't lock scroll in lobby - users need to scroll to see all content
+  lockScroll(false);
   ensureFinishLine();
   gameGraphics.loadAllSushiCharacters();
 
@@ -2612,7 +2663,8 @@ function initGame() {
       console.error('[INIT] ERROR: Lobby element not found!');
     }
     
-    lockScroll(true);
+    // Don't lock scroll in lobby - allow scrolling to see all content
+    lockScroll(false);
     
     var bg = document.getElementById('bgMusic');
     if (bg) {
@@ -2797,7 +2849,7 @@ socket.on('roomNotFound', function () {
   }, 500);
 });
 
-socket.on('gameStarted', function (data) {
+socket.on('gameStart', function (data) {
   if (gameState.isResetting) return;
 
   console.log('[GAME] Game started event received', data);
@@ -2870,6 +2922,15 @@ socket.on('gameStarted', function (data) {
   if (data?.positions) gameState.positions = data.positions;
   if (data?.speeds)    gameState.speeds    = data.speeds;
   gameState.myId = getMyPlayerId();
+
+  // FIX: Initialize stamina for all players and start regen loop
+  for (var pid in gameState.players) {
+    if (gameState.players[pid].socketId === socket.id) {
+      defenseSystem.initStamina(pid);
+      console.log('[GAME] Initialized stamina for player', pid);
+    }
+  }
+  defenseSystem.startRegenLoop();
 
   // Show HUD elements
   const grandstand = document.getElementById('grandstand');
@@ -3098,6 +3159,23 @@ socket.on('resetRoom', function(data) {
   }
 
   console.log('[RESET] Reset complete - ready for new game');
+});
+
+// Online player count handler
+socket.on('onlineCount', function(data) {
+  if (data) {
+    // Update total online
+    const totalEl = document.getElementById('onlineTotal');
+    if (totalEl) totalEl.textContent = data.total || 0;
+    
+    // Update in lobby count
+    const lobbyEl = document.getElementById('onlineInLobby');
+    if (lobbyEl) lobbyEl.textContent = data.inLobby || 0;
+    
+    // Update in game count
+    const gameEl = document.getElementById('onlineInGame');
+    if (gameEl) gameEl.textContent = data.inGame || 0;
+  }
 });
 
 
@@ -3332,57 +3410,96 @@ function spawnDust(playerId) {
    COUNTDOWN / TIMER / GAMELOOP
 ------------------------------ */
 function startCountdown() {
-  if (gameState.isResetting) return;
+  console.log('[COUNTDOWN] startCountdown called');
+  console.log('[COUNTDOWN] isResetting:', gameState.isResetting);
+  console.log('[COUNTDOWN] raceStarted:', gameState.raceStarted);
+  
+  if (gameState.isResetting) {
+    console.log('[COUNTDOWN] Aborting - game is resetting');
+    return;
+  }
+  
   gameState.countdownActive = true;
+  console.log('[COUNTDOWN] Set countdownActive to true');
+  
   var count = 3;
   var countdownEl = document.getElementById('countdown');
-  if (!countdownEl) return;
   
-const tips = {
-  3: "TAP LEFT & RIGHT TO SPRINT",
-  2: "TAP ABOVE/BELOW TO CHANGE LANES",
-  1: "FASTEST TAPPER WINS!"
-};
+  if (!countdownEl) {
+    console.error('[COUNTDOWN] ERROR: Countdown element not found!');
+    return;
+  }
+  
+  console.log('[COUNTDOWN] Countdown element found:', countdownEl);
+  
+  const tips = {
+    3: "TAP LEFT & RIGHT TO SPRINT",
+    2: "TAP ABOVE/BELOW TO CHANGE LANES",
+    1: "FASTEST TAPPER WINS!"
+  };
   
   countdownEl.style.display = 'block';
   countdownEl.innerHTML = `
     <div style="font-size: 3.2rem;">${count}</div>
     <div style="font-size: 1rem; margin-top: 10px; color: #FFD700;">${tips[count]}</div>
   `;
+  console.log('[COUNTDOWN] Showing 3...');
   
   var interval = setInterval(function () {
     if (gameState.isResetting) {
+      console.log('[COUNTDOWN] Game reset during countdown, aborting');
       clearInterval(interval);
       countdownEl.style.display = 'none';
       gameState.countdownActive = false;
       return;
     }
+    
     count--;
+    console.log('[COUNTDOWN] Count is now:', count);
+    
     if (count > 0) {
+      // Show 2, then 1
       countdownEl.innerHTML = `
         <div style="font-size: 3.2rem;">${count}</div>
         <div style="font-size: 1rem; margin-top: 10px; color: #FFD700;">${tips[count]}</div>
       `;
+      console.log(`[COUNTDOWN] Showing ${count}...`);
       
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
       
       if (sounds.initialized) sounds.playCountdown();
-    } else if (count === 0) {
-      countdownEl.style.display = 'none';
-      // rest of your existing GO! logic
       
+    } else {
+      // Count is now 0 - SHOW GO! FIRST
+      console.log('[COUNTDOWN] Count reached 0 - showing GO!');
+      clearInterval(interval);
+      
+      // Show GO! message with MAXIMUM VISIBILITY
+      countdownEl.style.display = 'block';
+      countdownEl.style.visibility = 'visible';
+      countdownEl.style.opacity = '1';
+      countdownEl.style.zIndex = '9999';
+      countdownEl.innerHTML = `
+        <div style="font-size: 5rem; color: #00FF88; text-shadow: 0 0 30px #00FF88, 4px 4px 0 #000;">GO!</div>
+      `;
+      console.log('[COUNTDOWN] GO! displayed');
+      
+      // Resume audio
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
       
+      // Play GO! sound
       if (sounds.initialized) sounds.playGo();
       
+      // Show GO! kanji effect
       if (typeof kanjiEffects !== 'undefined') {
         kanjiEffects.showKanji('start');
       }
       
+      // Crowd reactions
       if (Math.random() < 0.1 && typeof crowdSystem !== 'undefined') {
         crowdSystem.onCloseRacing(gameState.positions);
       }
@@ -3391,15 +3508,32 @@ const tips = {
         crowdSystem.onRaceStart();
       }
       
+      // Visual effects
       playStartSound();
       launchTickerTape();
-    } else {
-      clearInterval(interval);
-      gameState.countdownActive = false;
-      gameState.startTime = Date.now();
-      startTimer();
-      startGameLoop();
-      console.log('Race timer started - tapping now enabled');
+      
+      console.log('[COUNTDOWN] Waiting 600ms before starting race...');
+      // Wait 600ms to show GO!, THEN start the race
+      setTimeout(function() {
+        console.log('[COUNTDOWN] Timeout complete - starting race');
+        countdownEl.style.display = 'none';
+        gameState.countdownActive = false;
+        
+        // Lock scroll during race to prevent accidental scrolling
+        lockScroll(true);
+        
+        // START THE RACE
+        gameState.startTime = Date.now();
+        startTimer();
+        startGameLoop();
+        
+        console.log('[COUNTDOWN] ✅ RACE STARTED!');
+        console.log('[COUNTDOWN] State check:');
+        console.log('  - countdownActive:', gameState.countdownActive);
+        console.log('  - raceStarted:', gameState.raceStarted);
+        console.log('  - raceFinished:', gameState.raceFinished);
+        console.log('  - isResetting:', gameState.isResetting);
+      }, 600);
     }
   }, 1000);
 }
@@ -3671,6 +3805,9 @@ function showResults() {
   // ✅ FORCE STOP EVERYTHING IMMEDIATELY
   gameState.raceFinished = true;
   gameLoopRunning = false;
+  
+  // Unlock scroll for results screen
+  lockScroll(false);
   
   if (timerInterval) {
     clearInterval(timerInterval);
@@ -3952,7 +4089,10 @@ function resetGame() {
   } else {
     console.warn('[RESET] No room id; requesting new quick race');
     if (typeof resetAllUIElements === 'function') resetAllUIElements();
-    socket.emit('quickRace'); // will set room later
+    // Get selected country code or default to UN
+    const countrySelect = document.getElementById('countrySelect');
+    const countryCode = countrySelect ? countrySelect.value : 'UN';
+    socket.emit('quickRace', { countryCode });
     gameState.isResetting = false; // allow interaction again
   }
 }
@@ -4051,8 +4191,11 @@ function joinRoom() {
       }
     });
 
-    socket.emit('quickRace');
-    console.log('[JOIN] Emitted quickRace');
+    // Get selected country code or default to UN
+    const countrySelect = document.getElementById('countrySelect');
+    const countryCode = countrySelect ? countrySelect.value : 'UN';
+    socket.emit('quickRace', { countryCode });
+    console.log('[JOIN] Emitted quickRace with country:', countryCode);
     return;
   }
 
