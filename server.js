@@ -77,30 +77,7 @@ app.get('/api/records', (req, res) => {
   res.json(records);
 });
 
-// ADMIN: Reset fastest time only (remove this endpoint after use)
-app.get('/admin/reset-fastest', (req, res) => {
-  const oldRecord = records.fastest;
-  records.fastest = null;
-  saveRecords();
-  res.json({ 
-    success: true, 
-    message: 'Fastest time reset successfully',
-    old: oldRecord,
-    new: records.fastest
-  });
-});
 
-// ADMIN: View all data (helpful for debugging)
-app.get('/admin/view-data', (req, res) => {
-  res.json({
-    leaderboard: countryLeaderboard,
-    records: records,
-    dataFiles: {
-      leaderboard: LB_FILE,
-      records: REC_FILE
-    }
-  });
-});
 
 // ADMIN: Verify disk setup (helpful for debugging Render configuration)
 app.get('/admin/verify-disk', (req, res) => {
