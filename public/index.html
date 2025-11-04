@@ -734,11 +734,11 @@
 
 
 /* === Game tap buttons (arcade image style) === */
-/* === Game tap buttons (arcade image-only style) === */
-/* === Game tap buttons (arcade image-only style) === */
+/* === Game tap buttons (responsive sizing) === */
 .touch-btn {
-  width: 140px;
-  height: 140px;
+  /* Responsive sizing - will be overridden by media queries */
+  width: clamp(100px, 18vw, 160px);
+  height: clamp(100px, 18vw, 160px);
 
   /* Default image */
   background: transparent url('images/red_button_not_pressed.png') center/contain no-repeat;
@@ -1212,14 +1212,7 @@
 }
 
 
-/* Mobile size */
-@media (max-width: 480px) {
-  .touch-btn {
-    width: 120px;
-    height: 120px;
-  }
-}
-
+/* Touch button sizing now handled by responsive clamp() above and specific media queries */
 
 
 
@@ -1245,7 +1238,14 @@
 
 
     /* ===== Arcade cabinet frame (kept) ===== */
-    #cabinet { position: relative; min-height: 100vh; overflow: hidden; }
+    #cabinet { 
+      position: relative; 
+      min-height: 100vh; 
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
 
     /* Thin wood side rails */
    
@@ -1254,6 +1254,8 @@
     #screen {
       position: relative;
       min-height: 100svh;
+      width: 100%;
+      max-width: 100%;
       padding-top: calc(56px + env(safe-area-inset-top)); /* clear marquee */
       padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* space for buttons */
       overflow-y: auto;
@@ -1261,39 +1263,77 @@
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
     }
+    
+    /* Desktop: Better game container */
+    @media (min-width: 1200px) {
+      #screen {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+    }
 
     /* ---- Status bar ---- */
-   /* HUD (status bar) styling */
+   /* HUD (status bar) styling - Responsive */
 #statusBar {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 10px);
+  top: calc(env(safe-area-inset-top) + 8px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(540px, 92vw);
-  height: 40px;
+  width: clamp(300px, 88vw, 600px);
+  height: clamp(36px, 6vh, 50px);
   display: none;
   align-items: center;
   justify-content: center;
-  gap: .75rem;
+  gap: clamp(0.3rem, 1vw, 0.5rem);
   background: #000;
   color: #fff;
-  border: 2px solid #111;
-  border-radius: 10px;
+  border: 2px solid #FFD700;
+  border-radius: clamp(8px, 2vw, 12px);
   z-index: 4100;
-  box-shadow: 0 4px 0 rgba(0,0,0,.5), 0 0 24px rgba(0,0,0,.35);
+  box-shadow: 0 4px 0 rgba(0,0,0,.5), 0 0 20px rgba(255,215,0,.3), inset 0 0 15px rgba(255,215,0,.08);
+  padding: 0 clamp(0.6rem, 2vw, 1rem);
 }
 #statusBar.active { display: flex; }
 
 #statusBar .status-brand {
-  font-size: 1rem;
-  color: #fff;
-  letter-spacing: 2px;
+  font-size: clamp(0.7rem, 2vw, 0.9rem);
+  color: #FFD700;
+  letter-spacing: clamp(1px, 0.3vw, 2px);
   text-shadow: 2px 2px 0 #000;
+  font-weight: bold;
 }
+
+/* Japanese flag between brand and timer */
+#statusBar .status-flag {
+  font-size: clamp(0.9rem, 2.5vw, 1.2rem);
+  line-height: 1;
+  filter: drop-shadow(1px 1px 1px #000);
+}
+
 #statusBar .status-timer {
-  font-size: 1rem;
-  letter-spacing: 1px;
+  font-size: clamp(0.85rem, 2.2vw, 1.1rem);
+  letter-spacing: clamp(0.5px, 0.2vw, 1px);
   color: #fff;
+  font-weight: bold;
+  text-shadow: 2px 2px 0 rgba(0,0,0,.5);
+}
+
+/* Small screens (< 375px) - Extra compact */
+@media (max-width: 374px) {
+  #statusBar {
+    height: 32px;
+    padding: 0 0.4rem;
+  }
+  #statusBar .status-brand {
+    font-size: 0.65rem;
+    letter-spacing: 0.5px;
+  }
+  #statusBar .status-flag {
+    font-size: 0.8rem;
+  }
+  #statusBar .status-timer {
+    font-size: 0.75rem;
+  }
 }
 
 
@@ -1385,27 +1425,120 @@
     .play-button:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--ocean-blue); }
     .play-button:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--ocean-blue); }
 
-    /* ---- Grandstand ---- */
+    /* ---- Grandstand - Responsive ---- */
     #grandstand {
-      width: 100%; height: 120px;
+      width: 100%; 
+      height: clamp(80px, 15vh, 200px);
       background: url('images/grandstand.png') repeat-x bottom;
-      background-size: auto 120px;
-      position: relative;        /* make its z-index actually apply */
-      z-index: 1000;   /* below the track */
+      background-size: auto 100%;
+      position: relative;
+      z-index: 1000;
       display: none;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      image-rendering: -webkit-optimize-contrast;
+      margin: 0;
+      padding: 0;
     }
-    #grandstand.active { display: block; }
+    #grandstand.active { 
+      display: block; 
+      min-height: 80px;
+    }
+    
+    /* Tablet: Medium grandstand */
+    @media (min-width: 768px) {
+      #grandstand {
+        height: clamp(120px, 18vh, 220px);
+      }
+      #grandstand.active {
+        min-height: 120px;
+      }
+    }
+    
+    /* Desktop: Taller grandstand */
+    @media (min-width: 1200px) {
+      #grandstand {
+        height: clamp(150px, 20vh, 250px);
+      }
+      #grandstand.active {
+        min-height: 150px;
+      }
+    }
+    
+    /* Small screens: Compact grandstand */
+    @media (max-width: 374px) {
+      #grandstand {
+        height: 70px;
+      }
+      #grandstand.active {
+        min-height: 70px;
+      }
+    }
 
-    /* ---- Track ---- */
+    /* ---- Track - Responsive ---- */
   .track-container { 
   position: relative; 
   width: 100%; 
-  height: 320px; 
-  z-index: 2000;   /* above grandstand */
+  /* Dynamic height: viewport minus other elements */
+  height: clamp(280px, calc(100vh - 300px), 600px);
+  z-index: 2000;
   overflow: visible; 
   background: #b7410e; 
-  display: none; 
+  display: none;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  margin: 0;
+  padding: 0;
 }
+
+.track-container.active {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Small screens: Ensure minimum playable size */
+@media (max-width: 374px) {
+  .track-container {
+    height: clamp(250px, calc(100vh - 280px), 500px);
+  }
+}
+
+/* Tablet: Optimize for larger screens */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .track-container {
+    height: clamp(350px, calc(100vh - 350px), 650px);
+  }
+}
+
+/* Desktop: Scale up for better visibility */
+@media (min-width: 1200px) {
+  .track-container {
+    height: clamp(400px, calc(100vh - 400px), 700px);
+  }
+}
+
+/* Landscape mode on phones: Compact layout */
+@media (orientation: landscape) and (max-height: 500px) {
+  .track-container {
+    height: clamp(180px, 40vh, 300px);
+  }
+}
+
+/* Desktop: Scale up the track for better visibility */
+@media (min-width: 768px) {
+  .track-container {
+    height: 480px; /* 1.5x taller on desktop */
+    transform-origin: left center;
+  }
+}
+
+@media (min-width: 1200px) {
+  .track-container {
+    height: 560px; /* Even taller on large screens */
+  }
+}
+
 .track-container.active { 
   display: block !important;
   visibility: visible !important;
@@ -1467,6 +1600,21 @@
   background-position: center !important;
 }
 
+/* Desktop: Bigger runners for better visibility */
+@media (min-width: 768px) {
+  .runner {
+    width: 48px !important; /* !important to override inline JS styles */
+    height: 48px !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .runner {
+    width: 56px !important; /* !important to override inline JS styles */
+    height: 56px !important;
+  }
+}
+
 .runner {
   /* ... existing styles ... */
   background-size: cover !important;
@@ -1495,12 +1643,65 @@
   pointer-events: none;
 }
 
-    /* Pixel countdown */
+    /* Pixel countdown - Responsive */
     #countdown {
-      display: none; position: fixed; top: 42%; left: 50%; transform: translate(-50%,-50%);
-      font-size: 3.2rem; letter-spacing: 3px; color: #fff;
+      display: none; 
+      position: fixed; 
+      top: 42%; 
+      left: 50%; 
+      transform: translate(-50%,-50%);
+      font-size: clamp(2.5rem, 8vw, 4rem);
+      letter-spacing: clamp(2px, 0.5vw, 3px);
+      color: #fff;
       text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
       z-index: 4200;
+      max-width: 90vw;
+      text-align: center;
+    }
+    
+    /* Small screens: More compact countdown */
+    @media (max-width: 374px) {
+      #countdown {
+        font-size: 2rem;
+        letter-spacing: 1px;
+      }
+    }
+    
+    /* Landscape mode: Adjust positioning */
+    @media (orientation: landscape) and (max-height: 500px) {
+      #countdown {
+        top: 35%;
+        font-size: clamp(1.8rem, 6vw, 2.5rem);
+      }
+    }
+
+    /* GO! animations */
+    @keyframes goEnlarge {
+      0% { 
+        transform: scale(0.3);
+        opacity: 0;
+      }
+      60% {
+        transform: scale(1.1);
+      }
+      100% { 
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes kanjiPop {
+      0% { 
+        transform: scale(0.5) translateY(-20px);
+        opacity: 0;
+      }
+      70% {
+        transform: scale(1.1) translateY(0);
+      }
+      100% { 
+        transform: scale(1) translateY(0);
+        opacity: 1;
+      }
     }
 
     /* Dust puff */
@@ -1534,16 +1735,96 @@
 }
 
 
-    /* ---- Mobile controls: use your NEW red buttons ---- */
+    /* ---- Mobile controls - Responsive ---- */
     .mobile-controls {
-      position: fixed; left: 0; right: 0; bottom: 0;
-      padding: 22px 0 calc(22px + env(safe-area-inset-bottom));
+      position: fixed; 
+      left: 0; 
+      right: 0; 
+      bottom: 0;
+      padding: clamp(16px, 3vh, 24px) 0 calc(clamp(16px, 3vh, 24px) + env(safe-area-inset-bottom));
       background: url('images/arcade_panel_wood.png') center/cover no-repeat;
-      display: none; justify-content: center; z-index: 2500;
+      display: none; 
+      justify-content: center; 
+      z-index: 2500;
       border-top: 2px solid rgba(0,0,0,.4);
       box-shadow: 0 -8px 0 rgba(0,0,0,.45) inset, 0 -2px 0 rgba(255,255,255,.08) inset;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      -webkit-background-size: cover;
+      min-height: clamp(160px, 25vh, 220px);
     }
-    .mobile-controls.active { display: flex; }
+    .mobile-controls.active { 
+      display: flex; 
+      visibility: visible;
+      opacity: 1;
+    }
+    
+    /* Touch buttons - Responsive sizing */
+    .touch-btn {
+      width: clamp(100px, 18vw, 160px);
+      height: clamp(100px, 18vw, 160px);
+      background: transparent url('images/red_button_not_pressed.png') center/contain no-repeat;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      text-indent: -9999px;
+      overflow: hidden;
+      image-rendering: pixelated;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+    
+    .touch-btn.active,
+    .touch-btn.pressed {
+      background-image: url('images/red_button_pressed.png');
+      transform: translateY(2px);
+    }
+    
+    /* Small screens: Compact buttons */
+    @media (max-width: 374px) {
+      .mobile-controls {
+        min-height: 140px;
+        padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+      }
+      .touch-btn {
+        width: 90px;
+        height: 90px;
+      }
+      .dual-buttons {
+        gap: 12px !important;
+      }
+    }
+    
+    /* Landscape mode on phones: Ultra compact */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .mobile-controls {
+        min-height: 100px;
+        padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+      }
+      .touch-btn {
+        width: 70px;
+        height: 70px;
+      }
+      .dual-buttons {
+        gap: 10px !important;
+      }
+    }
+    
+    /* Tablet: Larger buttons */
+    @media (min-width: 768px) and (max-width: 1199px) {
+      .touch-btn {
+        width: 140px;
+        height: 140px;
+      }
+    }
+    
+    /* Desktop: Keep reasonable size */
+    @media (min-width: 1200px) {
+      .touch-btn {
+        width: 150px;
+        height: 150px;
+      }
+    }
     .control-player-label { font-size: .9rem; margin-bottom: .4rem; opacity: .95; text-shadow: 2px 2px 0 rgba(0,0,0,.35); }
     .player-touch-controls.dual { text-align: center; }
     .dual-buttons { display: flex; justify-content: center; align-items: center; gap: 22px; }
@@ -1785,6 +2066,7 @@
 <!-- Race HUD (shows only during race) -->
 <div id="statusBar">
   <span class="status-brand">RACE TIME</span>
+  <span class="status-flag">🇯🇵</span>
   <span class="status-timer"><span id="timer">00.000</span></span>
   <div id="staminaDisplay" style="display:none;">
     <div style="font-size:0.7rem; margin-bottom:2px;">ENERGY</div>
@@ -1928,7 +2210,7 @@
 </div>
 
   <p id="countryHint" style="font-size:0.5em;color:#aaa;margin:4px 0 10px 4px;font-style:italic;">
-  Neutral players don’t appear on the leaderboard.
+  Race for your country on the global leaderboard!
 </p>
 
   <!-- Bottom dock -->
@@ -2025,14 +2307,13 @@
         "ENG": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}", // England
         "SCO": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}", // Scotland
         "WAL": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}", // Wales
-        "NIR": "\u{1F1EC}\u{1F1E7}", // Northern Ireland (UK flag)
-        "UN": "\u{1F1FA}\u{1F1F3}"   // United Nations
+        "NIR": "\u{1F1EC}\u{1F1E7}" // Northern Ireland (UK flag)
       };
       
       // Global helper to convert ISO code to flag emoji
       window.isoToFlagEmoji = function(cc) {
         try {
-          if (!cc || typeof cc !== 'string') return '🇺🇳';
+          if (!cc || typeof cc !== 'string') return '🏳️';
           cc = cc.toUpperCase();
           
           // Check for custom flags first
@@ -2049,7 +2330,7 @@
           // Fallback for other codes
           return '🏳️';
         } catch { 
-          return '🇺🇳'; 
+          return '🏳️'; 
         }
       };
     </script>
@@ -2147,14 +2428,54 @@
 // Note: CUSTOM_FLAGS and isoToFlagEmoji are now defined globally before game.js loads (see line ~1978)
 // This ensures game.js can use window.isoToFlagEmoji immediately
 
-// --- Country list (trimmed ISO-3166 sample; add more as needed) ---
+// --- Detect user's country from browser locale (no IP needed!) ---
+function detectCountryFromBrowser() {
+  try {
+    // Get browser language (e.g., "en-US", "en-GB", "ja-JP")
+    const locale = navigator.language || navigator.userLanguage || 'en-US';
+    console.log('[Country] Browser locale:', locale);
+    
+    // Extract country code from locale
+    const parts = locale.split('-');
+    let countryCode = parts.length > 1 ? parts[1].toUpperCase() : null;
+    
+    if (!countryCode) {
+      console.log('[Country] No country code in locale, using US');
+      return 'US';
+    }
+    
+    console.log('[Country] Detected country code:', countryCode);
+    
+    // Map GB (United Kingdom) to ENG (England) as default
+    // Users from Scotland, Wales, or Northern Ireland can manually select
+    if (countryCode === 'GB' || countryCode === 'UK') {
+      console.log('[Country] Detected UK (GB) - defaulting to England (ENG)');
+      console.log('[Country] Users from Scotland, Wales, or Northern Ireland can manually select');
+      return 'ENG';
+    }
+    
+    // Check if detected country is in our list
+    const countryExists = ISO_COUNTRIES.find(c => c[0] === countryCode);
+    
+    if (countryExists) {
+      console.log('[Country] ✓ Country found in list:', countryCode);
+      return countryCode;
+    } else {
+      console.log('[Country] Country not in list, using US. Add', countryCode, 'if needed!');
+      return 'US'; // Safe fallback
+    }
+  } catch (error) {
+    console.error('[Country] Detection error:', error);
+    return 'US';
+  }
+}
+
 // --- Country list (globally representative, organized by region) ---
+// Note: Using England, Scotland, Wales, Northern Ireland separately (not GB/UK)
 const ISO_COUNTRIES = [
-  ["UN","United Nations"],
-  
-  // Europe
-  ["ENG","England"],["SCO","Scotland"],["WAL","Wales"],
-  ["IE","Ireland"],["NIR","Northern Ireland"],["JE","Jersey"],["GG","Guernsey"],
+  // Europe - UK Home Nations (not GB)
+  ["ENG","England"],["SCO","Scotland"],["WAL","Wales"],["NIR","Northern Ireland"],
+  ["IE","Ireland"],["JE","Jersey"],["GG","Guernsey"],
   ["FR","France"],["DE","Germany"],["ES","Spain"],["IT","Italy"],
   ["NL","Netherlands"],["SE","Sweden"],["NO","Norway"],["FI","Finland"],
   ["PL","Poland"],["PT","Portugal"],["GR","Greece"],["CH","Switzerland"],
@@ -2202,12 +2523,20 @@ const ISO_COUNTRIES = [
     sel.appendChild(o);
   });
 
-  // Load saved or default to UN
-  let saved = localStorage.getItem('sushiCountry') || 'UN';
+  // Load saved country, or auto-detect from browser locale
+  let saved = localStorage.getItem('sushiCountry');
+  
+  if (!saved) {
+    // First time - detect from browser
+    saved = detectCountryFromBrowser();
+    localStorage.setItem('sushiCountry', saved);
+    console.log('[Country] First visit - auto-detected and saved:', saved);
+  } else {
+    console.log('[Country] Loaded saved:', saved);
+  }
+  
   sel.value = saved;
   prev.textContent = isoToFlagEmoji(saved);
-  
-  console.log('[Country] Loaded:', saved);
 
   // Change listener
   sel.addEventListener('change', () => {

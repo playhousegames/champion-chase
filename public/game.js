@@ -3516,19 +3516,22 @@ function startCountdown() {
       if (sounds.initialized) sounds.playCountdown();
       
     } else {
-      // Count is now 0 - SHOW GO! FIRST
+      // Count is now 0 - SHOW COMBINED GO! + KANJI
       console.log('[COUNTDOWN] Count reached 0 - showing GO!');
       clearInterval(interval);
       
-      // Show GO! message with MAXIMUM VISIBILITY
+      // Show combined GO! message with kanji - clearer layout
       countdownEl.style.display = 'block';
       countdownEl.style.visibility = 'visible';
       countdownEl.style.opacity = '1';
       countdownEl.style.zIndex = '9999';
       countdownEl.innerHTML = `
-        <div style="font-size: 5rem; color: #00FF88; text-shadow: 0 0 30px #00FF88, 4px 4px 0 #000;">GO!</div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+          <div style="font-size: 6rem; color: #00FF88; text-shadow: 0 0 30px #00FF88, 4px 4px 0 #000; line-height: 1; animation: goEnlarge 0.3s ease-out;">GO!</div>
+          <div style="font-size: 2.5rem; color: #FFD700; text-shadow: 2px 2px 0 #000, 0 0 20px #FFD700; font-family: 'Noto Sans JP', sans-serif; animation: kanjiPop 0.3s ease-out 0.15s both;">行け！</div>
+        </div>
       `;
-      console.log('[COUNTDOWN] GO! displayed');
+      console.log('[COUNTDOWN] GO! displayed with kanji');
       
       // Resume audio
       if (audioCtx && audioCtx.state === 'suspended') {
@@ -3538,10 +3541,10 @@ function startCountdown() {
       // Play GO! sound
       if (sounds.initialized) sounds.playGo();
       
-      // Show GO! kanji effect
-      if (typeof kanjiEffects !== 'undefined') {
-        kanjiEffects.showKanji('start');
-      }
+      // Don't show separate kanji effect since we're showing it inline
+      // if (typeof kanjiEffects !== 'undefined') {
+      //   kanjiEffects.showKanji('start');
+      // }
       
       // Crowd reactions
       if (Math.random() < 0.1 && typeof crowdSystem !== 'undefined') {
