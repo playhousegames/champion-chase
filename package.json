@@ -1,20 +1,13 @@
 {
-  "name": "sushi-sprint-enhanced",
-  "version": "2.0.0",
-  "description": "Enhanced Sushi Sprint multiplayer racing game with online player counter",
-  "main": "server_enhanced.js",
+  "name": "sushi-sprint",
+  "version": "1.0.0",
+  "main": "server.js",
   "scripts": {
-    "start": "node server_enhanced.js",
-    "dev": "nodemon server_enhanced.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.6.1"
+    "express": "^5.1.0",
+    "socket.io": "^4.8.1"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  },
-  "keywords": ["multiplayer", "game", "racing", "sushi", "real-time"],
-  "author": "Sushi Sprint Team",
   "license": "MIT"
 }
