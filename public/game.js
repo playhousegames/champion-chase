@@ -2559,6 +2559,11 @@ function resetAllUIElements() {
     lobby.style.opacity = '1';
   }
 
+  // ✅ Reset scroll position when returning to lobby
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+
   var joinBtn = document.getElementById('joinRoomBtn');
   if (joinBtn) {
     joinBtn.style.display = 'inline-block';
@@ -2702,6 +2707,11 @@ function initGame() {
     } else {
       console.error('[INIT] ERROR: Lobby element not found!');
     }
+    
+    // ✅ Reset scroll position on initial load
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     
     // Don't lock scroll in lobby - allow scrolling to see all content
     lockScroll(false);
@@ -2893,6 +2903,11 @@ socket.on('gameStart', function (data) {
   if (gameState.isResetting) return;
 
   console.log('[GAME] Game started event received', data);
+
+  // ✅ CRITICAL: Reset scroll position FIRST to prevent lobby scroll affecting game layout
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
 
   // Hide lobby
   const lobby = document.getElementById('lobby');
@@ -3152,6 +3167,11 @@ socket.on('resetRoom', function(data) {
     lobby.style.opacity = '1';
     console.log('[RESET] Lobby shown');
   }
+
+  // ✅ Reset scroll position
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
 
   // ✅ HIDE RESULTS SCREEN
   var results = document.getElementById('results');
