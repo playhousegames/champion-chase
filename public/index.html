@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <!-- SEO Meta Tags -->
 <meta name="description" content="Sushi Sprint - Free multiplayer racing game! Tap to dash as sushi characters, dodge obstacles, collect power-ups. Play with friends online instantly. No download required.">
 <meta name="keywords" content="multiplayer game, mobile game, tap game, racing game, sushi game, online multiplayer, free browser game, party game">
@@ -80,6 +80,18 @@
 
   <style>
 :root {
+  /* Safe area insets for notched devices */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  
+  /* Dynamic responsive dimensions */
+  --game-scale: 1;
+  --track-height: 400px;
+  --runner-size: 32px;
+  --ui-bottom-offset: calc(var(--sab) + 20px);
+  
   /* Sushi Sprint palette */
   --hot-tuna-red: #FF3366;
   --ocean-blue:   #0066FF;
@@ -1479,8 +1491,10 @@
   .track-container { 
   position: relative; 
   width: 100%; 
-  /* Dynamic height: viewport minus other elements */
-  height: clamp(280px, calc(100vh - 300px), 600px);
+  /* Use responsive variable height with safe areas */
+  height: var(--track-height);
+  max-height: calc(100vh - var(--sat) - var(--sab) - 200px);
+  min-height: 250px;
   z-index: 2000;
   overflow: visible; 
   background: #b7410e; 
@@ -1495,48 +1509,6 @@
   display: block;
   visibility: visible;
   opacity: 1;
-}
-
-/* Small screens: Ensure minimum playable size */
-@media (max-width: 374px) {
-  .track-container {
-    height: clamp(250px, calc(100vh - 280px), 500px);
-  }
-}
-
-/* Tablet: Optimize for larger screens */
-@media (min-width: 768px) and (max-width: 1199px) {
-  .track-container {
-    height: clamp(350px, calc(100vh - 350px), 650px);
-  }
-}
-
-/* Desktop: Scale up for better visibility */
-@media (min-width: 1200px) {
-  .track-container {
-    height: clamp(400px, calc(100vh - 400px), 700px);
-  }
-}
-
-/* Landscape mode on phones: Compact layout */
-@media (orientation: landscape) and (max-height: 500px) {
-  .track-container {
-    height: clamp(180px, 40vh, 300px);
-  }
-}
-
-/* Desktop: Scale up the track for better visibility */
-@media (min-width: 768px) {
-  .track-container {
-    height: 480px; /* 1.5x taller on desktop */
-    transform-origin: left center;
-  }
-}
-
-@media (min-width: 1200px) {
-  .track-container {
-    height: 560px; /* Even taller on large screens */
-  }
 }
 
 .track-container.active { 
@@ -1583,8 +1555,8 @@
   position: absolute; 
   z-index: 3; 
   left: 20px; 
-  width: 32px; 
-  height: 32px; 
+  width: var(--runner-size); 
+  height: var(--runner-size); 
   image-rendering: pixelated;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
@@ -1600,18 +1572,64 @@
   background-position: center !important;
 }
 
-/* Desktop: Bigger runners for better visibility */
-@media (min-width: 768px) {
-  .runner {
-    width: 48px !important; /* !important to override inline JS styles */
-    height: 48px !important;
+/* Responsive breakpoints - update CSS variables for each device size */
+/* Very small devices (iPhone SE, older phones) */
+@media (max-width: 374px) {
+  :root {
+    --track-height: 300px;
+    --runner-size: 28px;
+    --game-scale: 0.85;
   }
 }
 
-@media (min-width: 1200px) {
+/* Small devices (iPhone 12/13, standard phones) */
+@media (min-width: 375px) and (max-width: 767px) {
+  :root {
+    --track-height: 350px;
+    --runner-size: 32px;
+    --game-scale: 1;
+  }
+}
+
+/* Medium devices (tablets, large phones) */
+@media (min-width: 768px) and (max-width: 1199px) {
+  :root {
+    --track-height: 450px;
+    --runner-size: 40px;
+    --game-scale: 1.2;
+  }
+  
   .runner {
-    width: 56px !important; /* !important to override inline JS styles */
-    height: 56px !important;
+    width: var(--runner-size) !important;
+    height: var(--runner-size) !important;
+  }
+}
+
+/* Large devices (desktop) */
+@media (min-width: 1200px) {
+  :root {
+    --track-height: 550px;
+    --runner-size: 48px;
+    --game-scale: 1.4;
+  }
+  
+  .runner {
+    width: var(--runner-size) !important;
+    height: var(--runner-size) !important;
+  }
+}
+
+/* Extra tall devices (iPhone 14 Pro Max, etc.) */
+@media (min-height: 900px) {
+  :root {
+    --track-height: 450px;
+  }
+}
+
+/* Landscape mode on phones */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root {
+    --track-height: calc(100vh - 150px);
   }
 }
 
@@ -2334,6 +2352,8 @@
         }
       };
     </script>
+
+    <script src="responsive-utils.js"></script>
     
     <script src="game.js"></script>
 
@@ -2704,6 +2724,63 @@ const ISO_COUNTRIES = [
 
 
   </div>
+
+<!-- Responsive Game System -->
+<script src="responsive-utils.js"></script>
+
+<script>
+// Initialize responsive features
+(function initResponsiveGame() {
+  // Update responsive variables based on viewport
+  function updateResponsiveVars() {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const aspectRatio = vw / vh;
+    
+    // Log for debugging (remove in production)
+    if (localStorage.getItem('sushiDebug') === 'true') {
+      console.log('[Responsive] Device:', {
+        width: vw,
+        height: vh,
+        aspectRatio: aspectRatio.toFixed(2),
+        isLandscape: aspectRatio > 1
+      });
+    }
+    
+    // Calculate optimal track height
+    const topUI = 200;
+    const bottomMargin = 50;
+    const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0;
+    const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab')) || 0;
+    
+    const availableHeight = vh - topUI - bottomMargin - safeAreaTop - safeAreaBottom;
+    const trackHeight = Math.max(250, Math.min(600, availableHeight));
+    
+    document.documentElement.style.setProperty('--track-height', trackHeight + 'px');
+    
+    // Scale runners based on track height
+    const baseRunnerSize = 32;
+    const scaleFactor = trackHeight / 400;
+    const runnerSize = Math.max(28, Math.min(56, baseRunnerSize * scaleFactor));
+    document.documentElement.style.setProperty('--runner-size', runnerSize + 'px');
+    document.documentElement.style.setProperty('--game-scale', scaleFactor);
+  }
+  
+  // Update on resize and orientation change
+  window.addEventListener('resize', updateResponsiveVars);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(updateResponsiveVars, 100);
+  });
+  
+  // Initial setup
+  updateResponsiveVars();
+  
+  // Re-check after fonts load
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(updateResponsiveVars);
+  }
+})();
+</script>
 
 <script>
 (function tidyLobbyLayout(){
