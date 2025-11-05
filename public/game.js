@@ -1896,10 +1896,37 @@ var gameGraphics = {
     console.log('[SPRITE] Ensuring all sprites are visible...');
     for (var i = 1; i <= 4; i++) {
       var runner = document.getElementById('runner' + i);
-      if (!runner) continue;
+      if (!runner) {
+        console.warn('[SPRITE] Runner', i, 'element not found');
+        continue;
+      }
       
       var character = this.characters[i];
-      if (!character || !character.frames || character.frames.length === 0) continue;
+      if (!character || !character.frames || character.frames.length === 0) {
+        console.warn('[SPRITE] Character', i, 'has no frames loaded');
+        continue;
+      }
+      
+      // ✅ CRITICAL: Always restore frames data if missing
+      if (!runner.dataset.frames || !runner.dataset.currentFrame) {
+        console.log('[SPRITE] Restoring frames data for runner', i);
+        runner.dataset.frames = JSON.stringify(character.frames);
+        runner.dataset.currentFrame = '0';
+      }
+      
+      // ✅ Verify frames data is valid
+      try {
+        var frames = JSON.parse(runner.dataset.frames);
+        if (!frames || frames.length === 0) {
+          console.error('[SPRITE] Invalid frames data for runner', i, '- restoring from character');
+          runner.dataset.frames = JSON.stringify(character.frames);
+          runner.dataset.currentFrame = '0';
+        }
+      } catch(e) {
+        console.error('[SPRITE] Corrupted frames data for runner', i, '- restoring from character');
+        runner.dataset.frames = JSON.stringify(character.frames);
+        runner.dataset.currentFrame = '0';
+      }
       
       // Force sprite to be visible with proper styling
       runner.style.display = 'block';
@@ -1910,22 +1937,15 @@ var gameGraphics = {
       runner.style.position = 'absolute';
       runner.style.zIndex = '2100';
       
-      // Set background image if not already set
-      if (!runner.style.backgroundImage || runner.style.backgroundImage === 'none' || runner.style.backgroundImage === '') {
-        runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
-        runner.style.backgroundSize = 'cover';
-        runner.style.backgroundRepeat = 'no-repeat';
-        runner.style.backgroundPosition = 'center';
-      }
+      // ✅ Always set background image to first frame
+      runner.style.backgroundImage = 'url(' + character.frames[0] + ')';
+      runner.style.backgroundSize = 'cover';
+      runner.style.backgroundRepeat = 'no-repeat';
+      runner.style.backgroundPosition = 'center';
       
-      // Set up frames data
-      if (!runner.dataset.frames) {
-        runner.dataset.frames = JSON.stringify(character.frames);
-        runner.dataset.currentFrame = '0';
-      }
-      
-      console.log('[SPRITE] Runner ' + i + ' is now visible');
+      console.log('[SPRITE] Runner ' + i + ' is now visible with', character.frames.length, 'frames');
     }
+    console.log('[SPRITE] All sprites ensured visible');
   },
  
   updateRunnerSprite: function(playerId) {
@@ -2670,11 +2690,27 @@ function resetAllUIElements() {
       runner.style.left = '20px';
       runner.classList.remove('running', 'active', 'winner', 'bot-runner', 'speed-boost', 'slowed', 'shielded','frozen');
       runner.style.filter = '';
-      runner.style.backgroundImage = '';
+      
+      // ✅ CRITICAL FIX: Don't clear background image or frames data!
+      // Sprites are already loaded in memory, keep them to avoid reload race condition
+      // Just reset to first frame instead of clearing everything
+      if (runner.dataset.frames) {
+        try {
+          var frames = JSON.parse(runner.dataset.frames);
+          if (frames && frames[0]) {
+            runner.style.backgroundImage = 'url(' + frames[0] + ')';
+            runner.dataset.currentFrame = '0';
+          }
+        } catch(e) {
+          console.warn('[RESET] Could not reset runner', i, 'to frame 0:', e);
+        }
+      }
+      // Keep frames data - don't delete it
+      // delete runner.dataset.frames; ❌ REMOVED
+      // delete runner.dataset.currentFrame; ❌ REMOVED
+      
       runner.innerHTML = '';
       runner.textContent = '';
-      delete runner.dataset.frames;
-      delete runner.dataset.currentFrame;
       runner._stopTimer = null;
     }
 
