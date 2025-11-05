@@ -56,6 +56,13 @@ var ResponsiveGame = {
     for (let i = 1; i <= 4; i++) {
       const runner = document.getElementById('runner' + i);
       if (runner) {
+        // ✅ CRITICAL: Don't change size if runner is currently animating
+        // This prevents interference with the sprite animation system
+        if (runner.dataset.animating === 'true' || runner.getAttribute('data-animating') === 'true') {
+          console.log('[Responsive] Skipping runner', i, '- currently animating');
+          continue;
+        }
+        
         runner.style.width = runnerSize + 'px';
         runner.style.height = runnerSize + 'px';
       }
@@ -86,6 +93,11 @@ var ResponsiveGame = {
   positionRunnerInLane: function(runnerId, laneNumber) {
     const runner = document.getElementById('runner' + runnerId);
     if (!runner) return;
+    
+    // ✅ CRITICAL: Don't reposition if runner is currently animating
+    if (runner.dataset.animating === 'true' || runner.getAttribute('data-animating') === 'true') {
+      return;
+    }
     
     const trackHeight = this.getTrackHeight();
     const runnerSize = this.getRunnerSize();

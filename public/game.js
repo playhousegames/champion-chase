@@ -1976,18 +1976,26 @@ var gameGraphics = {
  
   animateSprite: function(playerId) {
     var runner = document.getElementById('runner' + playerId);
-    if (!runner || !runner.dataset.frames) return;
+    if (!runner || !runner.dataset.frames) {
+      console.warn('[SPRITE-DEBUG] animateSprite called but runner or frames missing for player', playerId);
+      return;
+    }
+    
+    // ✅ CRITICAL FIX: Mark runner as animating to prevent responsive system interference
+    runner.dataset.animating = 'true';
  
     var frames;
     try {
       frames = JSON.parse(runner.dataset.frames);
     } catch(e) {
       console.error('[SPRITE] Failed to parse frames for player', playerId, e);
+      runner.dataset.animating = 'false';
       return;
     }
  
     if (!frames || !Array.isArray(frames) || frames.length === 0) {
-      console.error('[SPRITE] No valid frames for player', playerId);
+      console.error('[SPRITE] No valid frames for player', playerId, 'frames:', frames);
+      runner.dataset.animating = 'false';
       return;
     }
  
@@ -2014,7 +2022,35 @@ var gameGraphics = {
     // ✅ CRITICAL: Store current background before changing (for fallback)
     var currentBackground = runner.style.backgroundImage;
     
+    // ✅ DEBUG: Log current state before making changes
+    var debugInfo = {
+      playerId: playerId,
+      currentFrame: currentFrame,
+      nextFrame: nextFrame,
+      currentBg: currentBackground,
+      newUrl: newImageUrl,
+      width: runner.style.width,
+      height: runner.style.height,
+      display: runner.style.display,
+      visibility: runner.style.visibility,
+      opacity: runner.style.opacity
+    };
+    
+    // Only log occasionally to avoid spam (every 10th frame)
+    if (nextFrame % 10 === 0 || !gameState._lastAnimLog || Date.now() - gameState._lastAnimLog > 2000) {
+      console.log('[SPRITE-DEBUG]', debugInfo);
+      gameState._lastAnimLog = Date.now();
+    }
+    
     if (newImageUrl && newImageUrl.trim() !== '') {
+      // ✅ CRITICAL FIX: Store the CORRECT width/height before ANY changes
+      var correctWidth = runner.style.width || '32px';
+      var correctHeight = runner.style.height || '32px';
+      
+      // Make sure we have valid dimensions
+      if (!correctWidth || correctWidth === '0px') correctWidth = '32px';
+      if (!correctHeight || correctHeight === '0px') correctHeight = '32px';
+      
       // ✅ CRITICAL FIX: Always ensure sprite is visible BEFORE changing image
       // This prevents any CSS transitions or opacity changes from hiding the sprite
       runner.style.display = 'block';
@@ -2033,19 +2069,31 @@ var gameGraphics = {
       runner.style.backgroundRepeat = 'no-repeat';
       runner.style.backgroundPosition = 'center';
       
-      // ✅ Only update width/height if they're not already set by responsive system
-      if (!runner.style.width || runner.style.width === '0px') {
-        runner.style.width = '32px';
-      }
-      if (!runner.style.height || runner.style.height === '0px') {
-        runner.style.height = '32px';
-      }
+      // ✅ CRITICAL: Restore width and height AFTER setting background
+      // This prevents external systems (like ResponsiveGame) from overriding during animation
+      runner.style.width = correctWidth;
+      runner.style.height = correctHeight;
+      
+      // ✅ Mark as animating to signal to external systems not to interfere
+      runner.setAttribute('data-animating', 'true');
       
       // ✅ Final verification: Check if the background was actually set
       // Some browsers might reject invalid URLs or have caching issues
       requestAnimationFrame(function() {
-        if (runner.style.backgroundImage === 'none' || runner.style.backgroundImage === '') {
-          console.error('[SPRITE] Background image failed to apply for player', playerId, '- restoring previous frame');
+        var currentBgAfter = runner.style.backgroundImage;
+        
+        // Double-check dimensions haven't been changed by external code
+        if (runner.style.width !== correctWidth) {
+          console.warn('[SPRITE] Width was changed during animation! Restoring:', correctWidth);
+          runner.style.width = correctWidth;
+        }
+        if (runner.style.height !== correctHeight) {
+          console.warn('[SPRITE] Height was changed during animation! Restoring:', correctHeight);
+          runner.style.height = correctHeight;
+        }
+        
+        if (currentBgAfter === 'none' || currentBgAfter === '') {
+          console.error('[SPRITE] Background image failed to apply for player', playerId, '- was:', urlToSet, 'now:', currentBgAfter);
           if (currentBackground && currentBackground !== 'none' && currentBackground !== '') {
             runner.style.backgroundImage = currentBackground;
             runner.dataset.currentFrame = String(Math.max(0, currentFrame));
@@ -3167,6 +3215,12 @@ socket.on('gameStart', function (data) {
   gameState.raceStarted = true;
   gameState.raceFinished = false;
   gameState.finishTimes = {};
+  
+  // ✅ Track race number for debugging
+  if (!gameState.raceNumber) gameState.raceNumber = 0;
+  gameState.raceNumber++;
+  console.log('[GAME] 🏁 STARTING RACE #' + gameState.raceNumber + ' 🏁');
+  
   if (data?.players)   gameState.players   = data.players;
   if (data?.positions) gameState.positions = data.positions;
   if (data?.speeds)    gameState.speeds    = data.speeds;
@@ -3567,10 +3621,32 @@ function startRunnerAnimation(playerId) {
   // Don't restart if already running
   if (playerStates[playerId].isRunning) return;
 
+  // ✅ DEBUG: Log detailed state at animation start
+  console.group('[ANIM-DEBUG] Starting animation for player', playerId);
+  console.log('Runner element:', runner);
+  console.log('Current styles:', {
+    width: runner.style.width,
+    height: runner.style.height,
+    display: runner.style.display,
+    visibility: runner.style.visibility,
+    opacity: runner.style.opacity,
+    backgroundImage: runner.style.backgroundImage
+  });
+  console.log('Dataset:', {
+    frames: runner.dataset.frames ? 'Present (' + JSON.parse(runner.dataset.frames).length + ' frames)' : 'Missing',
+    currentFrame: runner.dataset.currentFrame
+  });
+  
+  var character = gameGraphics.characters[playerId];
+  console.log('Character data:', {
+    exists: !!character,
+    frameCount: character ? character.frames.length : 0,
+    loaded: character ? character.loaded : false
+  });
+  console.groupEnd();
+
   runner.classList.add('running');
   playerStates[playerId].isRunning = true;
-
-  var character = gameGraphics.characters[playerId];
   
   // Set up frames if character has them (regardless of loaded flag)
   if (character && character.frames && character.frames.length > 0) {
@@ -3591,16 +3667,20 @@ function startRunnerAnimation(playerId) {
     if (!runner.dataset.frames) {
       runner.dataset.frames = JSON.stringify(validFrames);
       runner.dataset.currentFrame = '0';
+      console.log('[ANIM] Created frames dataset for player', playerId);
     } else {
       // ✅ Update frames to use validated list
       runner.dataset.frames = JSON.stringify(validFrames);
+      console.log('[ANIM] Updated frames dataset for player', playerId);
     }
     
     // ✅ Always ensure we have a valid background image BEFORE starting animation
     var currentBg = runner.style.backgroundImage;
     if (!currentBg || currentBg === 'none' || currentBg === '' || currentBg === 'url()') {
       runner.style.backgroundImage = 'url(' + validFrames[0] + ')';
-      console.log('[ANIM] Set initial background for player', playerId);
+      console.log('[ANIM] Set initial background for player', playerId, ':', validFrames[0]);
+    } else {
+      console.log('[ANIM] Background already set for player', playerId, ':', currentBg);
     }
     
     // Ensure background properties are set
@@ -3608,12 +3688,14 @@ function startRunnerAnimation(playerId) {
     runner.style.backgroundRepeat = 'no-repeat';
     runner.style.backgroundPosition = 'center';
     
-    // ✅ Only set size if not already set by responsive system
-    if (!runner.style.width || runner.style.width === '0px') {
+    // ✅ DON'T force width/height - let responsive system handle it or keep existing values
+    if (!runner.style.width) {
       runner.style.width = '32px';
+      console.log('[ANIM] Set width to 32px for player', playerId);
     }
-    if (!runner.style.height || runner.style.height === '0px') {
+    if (!runner.style.height) {
       runner.style.height = '32px';
+      console.log('[ANIM] Set height to 32px for player', playerId);
     }
     
     // ✅ Make sure runner is visible BEFORE starting animation
@@ -3646,6 +3728,11 @@ function stopRunnerAnimation(playerId) {
   if (Date.now() - lastTap < 280) return;
 
   runner.classList.remove('running');
+  
+  // ✅ Clear animating flag to allow responsive system to work again
+  runner.removeAttribute('data-animating');
+  runner.dataset.animating = 'false';
+  
   if (playerStates[playerId]) {
     playerStates[playerId].isRunning = false;
     if (playerStates[playerId].animationInterval) {
